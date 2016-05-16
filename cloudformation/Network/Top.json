@@ -285,56 +285,6 @@
           "Project":{ "Ref": "Project" }
         }
       }
-    },
-    "Dashboard": {
-        "Type": "AWS::CloudFormation::Stack",
-        "Properties": {
-            "TemplateURL": {
-                "Fn::Join": [ "", [ "https://s3.amazonaws.com/", { "Ref" : "CloudFormationBucket" }, "/Dashboard.json" ] ]
-            },
-            "Parameters": {
-                "IsMultiAZStack": "True",
-                "Role": "saltmaster",
-                "Environment":{ "Ref": "MacroEnvironment" },
-                "InstanceType":"t2.micro",
-                "AMI":{ "Fn::FindInMap" : [ "AmazonLinux201509", { "Ref" : "AWS::Region" }, "64HVMGP2"] },
-                "BootstrapFileName":"bootstrap.sh",
-                "AssociatePublicIPAddress":"True",
-                "RootEBSVolumeSize":"10",
-                "EBSVolumeType":"gp2",
-                "DeleteEBSVolumesOnTermination":"True",
-                "ASGHealthCheckType":"EC2",
-                "HealthCheckGracePeriod":"300",
-                "MaxInstancesCount":"2",
-                "MinInstancesCount":"1",
-                "ScaleUpAdjustment":"1",
-                "ScaleUpCooldown":"300",
-                "ScaleDownAdjustment":"-1",
-                "ScaleDownCooldown":"300",
-                "HighCPUThreshold":"101",
-                "HighCPUPeriod":"60",
-                "LowCPUThreshold":"10",
-                "LowCPUPeriod":"60",
-                "RollingUpdateMinInstancesInService":"1",
-                "RollingUpdateMaxBatchSize":"1",
-                "RollingUpdatePauseTime":"PT0M30S",
-                "IAMInstanceProfile":{"Fn::GetAtt" : ["IAM", "Outputs.BastionInstanceProfile"]},
-                "InstanceSubnetList":{
-                    "Fn::Join": [",",
-                        [
-                            {"Fn::GetAtt" : ["Subnets", "Outputs.PrivateSubnetAz1"]},
-                            {"Fn::GetAtt" : ["Subnets", "Outputs.PrivateSubnetAz2"]},
-                            {"Fn::GetAtt" : ["Subnets", "Outputs.PrivateSubnetAz3"]}
-                        ]
-                    ]
-                },
-                "InstanceSecurityGroups":{"Fn::GetAtt" : ["SecurityGroups", "Outputs.DashboardSecurityGroup" ]},
-                "CloudWatchAlarmSNSTopic":{"Fn::GetAtt" : ["SNS", "Outputs.NetworkOperations" ]},
-                "EC2KeyPair":{"Fn::Join": ["", [{ "Ref" : "CommonEC2Key" }, "rbn-ops-2016-", { "Ref":"AWS::Region" }]]},
-                "BootstrapS3BucketName":{"Ref": "BootstrapBucket"},
-                "Project":{"Ref": "Project"}
-            }
-        }
     }
 
   },
@@ -350,10 +300,6 @@
     "BastionSecurityGroup": {
       "Description": "Id of Bastion Security Group",
       "Value": { "Fn::GetAtt": [ "SecurityGroups", "Outputs.BastionSecurityGroup" ] }
-    },
-    "DashboardSecurityGroup": {
-        "Description": "Id of Dashboard Security Group",
-        "Value": { "Fn::GetAtt": [ "SecurityGroups", "Outputs.DashboardSecurityGroup" ] }
     },
     "NetworkOperationsSNSTopic": {
       "Description": "Network Operations SNS topic",
