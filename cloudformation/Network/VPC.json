@@ -1,0 +1,209 @@
+{
+  "AWSTemplateFormatVersion":"2010-09-09",
+  "Description":"Network VPC Stack.",
+  "Parameters":{
+    "VPNCIDR":{
+      "Description":"Cidr of the shared services vpc",
+      "Type":"String",
+      "MinLength":"9",
+      "MaxLength":"18",
+      "Default":"10.238.43.0/24",
+      "AllowedPattern":"(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})",
+      "ConstraintDescription":"must be a valid CIDR range of the form x.x.x.x/x."
+    },
+    "Project" : {
+      "Description" : "Project Name",
+      "Type" : "String",
+      "Default" : "Crown-Insite-Cloud",
+      "ConstraintDescription" : "must be a string."
+    },
+    "Environment" : {
+      "Description" : "Environment Name",
+      "Type" : "String",
+      "Default" : "dev-branch-1",
+      "ConstraintDescription" : "must be a string."
+    },
+    "VirtualPrivateGateway" : {
+      "Description" : "VGW ID for VPNs",
+      "Type" : "String",
+      "Default": ""
+    },
+    "InternalDomain": {
+      "Description": "The internal zone for dhcp.",
+      "Type": "String"
+    }
+  },
+  "Mappings":{
+    "VPC": { 
+      "us-east-1": {
+        "SharedServices":     "10.0.0.0/18",
+        "Prod":               "10.0.64.0/18",
+        "Test":               "10.0.128.0/18",
+        "Dev":                "10.0.192.0/18"
+      },
+      "us-west-2": {
+        "SharedServices":     "10.1.0.0/18",
+        "Prod":               "10.1.64.0/18",
+        "Test":               "10.1.128.0/18",
+        "Dev":                "10.1.192.0/18"
+      },
+      "ap-southeast-2":{
+        "SharedServices":     "10.2.0.0/18",
+        "Prod":               "10.2.64.0/18",
+        "Test":               "10.2.128.0/18",
+        "Dev":                "10.2.192.0/18"
+      }
+    }
+
+  },
+  "Resources":{
+    "VPC":{
+      "Type":"AWS::EC2::VPC",
+      "Properties":{
+        "CidrBlock":{"Fn::FindInMap":[ "VPC", { "Ref": "AWS::Region" }, {"Ref":"Environment"} ] },
+    	"EnableDnsSupport" : "true",
+    	"EnableDnsHostnames" : "true",
+        "Tags" : [
+          { "Key" : "project", "Value" : {"Ref":"Project"} },
+          { "Key" : "environment", "Value" : {"Ref":"Environment"} },
+          { "Key" : "Name", "Value": { "Fn::Join": ["-", [ { "Ref": "Environment" }, { "Ref": "Project" } ] ] } }
+        ]
+      }
+    },
+    "InternetGateway":{
+      "Type":"AWS::EC2::InternetGateway",
+      "Properties":{
+        "Tags" : [
+          { "Key" : "project", "Value" : {"Ref":"Project"} },
+          { "Key" : "environment", "Value" : {"Ref":"Environment"} },
+          { "Key" : "Name", "Value": "VPCInternetGateway" }
+        ]
+      }
+    },
+    "GatewayToInternet":{
+      "Type":"AWS::EC2::VPCGatewayAttachment",
+      "Properties":{
+        "VpcId":{ "Ref":"VPC" },
+        "InternetGatewayId":{ "Ref":"InternetGateway"}
+      }
+    },
+    "PublicRouteTable":{
+      "Type":"AWS::EC2::RouteTable",
+      "Properties":{
+        "VpcId": { "Ref":"VPC" },
+        "Tags" : [
+          { "Key" : "project", "Value" : {"Ref":"Project"} },
+          { "Key" : "environment", "Value" : {"Ref":"Environment"} },
+          { "Key" : "Name", "Value": "PublicRoute" }
+        ]
+      }
+    },
+    "PublicRoute":{
+      "Type":"AWS::EC2::Route",
+      "Properties":{
+        "RouteTableId":{ "Ref":"PublicRouteTable" },
+        "DestinationCidrBlock":"0.0.0.0/0",
+        "GatewayId":{ "Ref":"InternetGateway" }
+      }
+    },
+    "PrivateRouteTableAz1":{
+      "Type":"AWS::EC2::RouteTable",
+      "Properties":{
+        "VpcId":{ "Ref":"VPC" },
+        "Tags" : [
+          { "Key" : "project", "Value" : {"Ref":"Project"} },
+          { "Key" : "environment", "Value" : {"Ref":"Environment"} },
+          { "Key" : "Name", "Value": "PrivateRouteAz1" }
+        ]
+      }
+    },
+    "PrivateRouteTableAz2":{
+      "Type":"AWS::EC2::RouteTable",
+      "Properties":{
+        "VpcId":{ "Ref":"VPC" },
+        "Tags" : [
+          { "Key" : "project", "Value" : {"Ref":"Project"} },
+          { "Key" : "environment", "Value" : {"Ref":"Environment"} },
+          { "Key" : "Name", "Value": "PrivateRouteAz2" }
+        ]
+      }
+    },
+    "PrivateRouteTableAz3":{
+      "Type":"AWS::EC2::RouteTable",
+      "Properties":{
+        "VpcId":{ "Ref":"VPC" },
+        "Tags" : [
+          { "Key" : "project", "Value" : {"Ref":"Project"} },
+          { "Key" : "environment", "Value" : {"Ref":"Environment"} },
+          { "Key" : "Name", "Value": "PrivateRouteAz3" }
+        ]
+      }
+    },
+    "DhcpOptions":{
+      "Type":"AWS::EC2::DHCPOptions",
+      "Properties":{
+        "DomainName": { "Ref": "InternalDomain" },
+        "DomainNameServers":[ "AmazonProvidedDNS" ],
+        "Tags" : [
+          { "Key" : "project", "Value" : {"Ref":"Project"} }, 
+          { "Key" : "environment", "Value" : {"Ref":"Environment"} },
+          { "Key" : "Name", "Value": { "Fn::Join": ["-", [ { "Ref": "Environment" }, { "Ref": "Project" } ] ] } }
+        ]
+      }
+    },
+    "DHCPOptionsAssociation":{
+      "Type":"AWS::EC2::VPCDHCPOptionsAssociation",
+      "Properties":{
+        "VpcId":{ "Ref":"VPC" },
+        "DhcpOptionsId":{ "Ref":"DhcpOptions" }
+      }
+    },
+    "S3Endpoint": {
+      "Type": "AWS::EC2::VPCEndpoint",
+      "Properties": {
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [{
+            "Effect" : "Allow",
+            "Principal": "*",
+            "Action":["s3:*"],
+            "Resource":["arn:aws:s3:::*"]
+          }]
+        },
+        "RouteTableIds": [{"Ref":"PublicRouteTable"},{"Ref": "PrivateRouteTableAz1"},{"Ref":"PrivateRouteTableAz2"},{"Ref":"PrivateRouteTableAz3"}],
+        "ServiceName": { "Fn::Join":["",["com.amazonaws.", { "Ref": "AWS::Region"}, ".s3"]]},
+        "VpcId": {"Ref": "VPC"}
+      }
+    }
+  },
+  "Outputs":{
+    "VPC":{
+      "Description": "Pysical ID of VPC",
+      "Value": { "Ref": "VPC" }
+    },
+    "VPCCIDR":{
+      "Description": "CIDR of VPC",
+      "Value": {"Fn::FindInMap":[ "VPC", { "Ref": "AWS::Region" }, {"Ref":"Environment"} ] }
+    },
+    "PublicRouteTable": {
+      "Description": "Physical Id of PublicRouteTable",
+      "Value": { "Ref": "PublicRouteTable" }
+    },
+    "PrivateRouteTableAz1": {
+      "Description": "Physical Id of PrivateRouteTableAz1",
+      "Value": { "Ref": "PrivateRouteTableAz1" }
+    },
+    "PrivateRouteTableAz2": {
+      "Description": "Physical Id of PrivateRouteTableAz2",
+      "Value": { "Ref": "PrivateRouteTableAz2" }
+    },
+    "PrivateRouteTableAz3": {
+      "Description": "Physical Id of PrivateRouteTableAz3",
+      "Value": { "Ref": "PrivateRouteTableAz3" }
+    },
+    "S3Endpoint": {
+      "Description": "Physical ID of the S3 Endpoint",
+      "Value": { "Ref": "S3Endpoint" }
+    }
+  }
+}

@@ -1,0 +1,141 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "ElasticSearch",
+
+  "Parameters" : {
+    "Role" : {
+      "Description" : "Role, combined with Environment used as Domain",
+      "Type" : "String"
+    },
+    "Environment" : {
+      "Description" : "The environment this is being run in, eg prod, stage, test.",
+      "Type" : "String",
+      "Default" : ""
+    },
+    "InstanceSize" : {
+      "Description" : "The size for instance nodes to use.",
+      "Type" : "String",
+      "Default" : "t2.micro.elasticsearch",
+      "AllowedValues" : ["t2.micro.elasticsearch","t2.small.elasticsearch","t2.medium.elasticsearch","m3.medium.elasticsearch","m3.large.elasticsearch",
+        "m3.xlarge.elasticsearch","m3.2xlarge.elasticsearch","r3.large.elasticsearch","r3.xlarge.elasticsearch","r3.2xlarge.elasticsearch",
+        "r3.4xlarge.elasticsearch","r3.8xlarge.elasticsearch","i2.xlarge.elasticsearch","i2.2xlarge.elasticsearch"]
+    },
+    "MasterSize" : {
+      "Description" : "The size for master nodes to use.",
+      "Type" : "String",
+      "Default" : "t2.micro.elasticsearch",
+      "AllowedValues" : ["t2.micro.elasticsearch","t2.small.elasticsearch","t2.medium.elasticsearch","m3.medium.elasticsearch","m3.large.elasticsearch",
+        "m3.xlarge.elasticsearch","m3.2xlarge.elasticsearch","r3.large.elasticsearch","r3.xlarge.elasticsearch","r3.2xlarge.elasticsearch",
+        "r3.4xlarge.elasticsearch","r3.8xlarge.elasticsearch","i2.xlarge.elasticsearch","i2.2xlarge.elasticsearch"]
+    },
+    "NumberOfInstances" : {
+      "Description": "The number of instance nodes to use.",
+      "Type" : "Number",
+      "Default": "1",
+      "MinValue": "1"
+    },
+    "NumberOfMasters" : {
+      "Description": "The number of master nodes to use.",
+      "Type" : "Number",
+      "Default": "3",
+      "MinValue": "3"
+    },
+    "EBSVolumeSize" : {
+      "Description": "Size in GB for EBS Volumes attached to instances",
+      "Type" : "Number",
+      "Default": "20"
+    },
+    "HostedZoneName": {
+      "Description": "FQDN of the domain you want to add record to",
+      "Type": "String",
+      "Default": ""
+    },
+    "AllowedIps": {
+      "Description": "List of allowed IP addresses, e.g. from NAT Gateways",
+      "Type": "CommaDelimitedList",
+      "Default": ""
+    }
+  },
+  "Conditions": {
+    "ZoneAwareness": { "Fn::Not": [ { "Fn::Equals": [ { "Ref": "NumberOfInstances" }, "1" ] } ] },
+    "DedicatedMaster": { "Fn::Not": [ { "Fn::Equals": [ { "Ref": "NumberOfMasters" }, "0" ] } ] }
+  },
+  "Resources" : {
+    "ElasticSearchDomain": {
+      "Type": "AWS::Elasticsearch::Domain",
+      "Properties": {
+        "ElasticsearchClusterConfig": {
+          "DedicatedMasterEnabled": {
+            "Fn::If": [ "DedicatedMaster", "True", "False" ]
+          },
+          "InstanceCount": { "Ref": "NumberOfInstances" },
+          "ZoneAwarenessEnabled": {
+            "Fn::If": [ "ZoneAwareness", "True", "False" ]
+          },
+          "InstanceType": { "Ref": "InstanceSize" },
+          "DedicatedMasterType": {
+            "Fn::If": [ "DedicatedMaster", { "Ref": "MasterSize" }, { "Ref": "AWS::NoValue" } ]
+          },
+          "DedicatedMasterCount": {
+            "Fn::If": [ "DedicatedMaster", { "Ref": "NumberOfMasters" }, { "Ref": "AWS::NoValue" } ]
+          }
+        },
+        "EBSOptions": {
+          "EBSEnabled": true,
+          "Iops": 0,
+          "VolumeSize": { "Ref": "EBSVolumeSize" },
+          "VolumeType": "gp2"
+        },
+        "SnapshotOptions": {
+          "AutomatedSnapshotStartHour": "0"
+        },
+        "AccessPolicies": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "",
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": "*"
+              },
+              "Action": "es:*",
+              "Resource": "*",
+              "Condition": {
+                "IpAddress": {
+                  "aws:SourceIp": { "Ref": "AllowedIps"}
+                }
+              }
+            }
+          ]
+        },
+        "Tags": [
+          { "Key": "environment", "Value": { "Ref": "Environment" } },
+          { "Key": "role", "Value": { "Ref": "Role" } }
+        ]
+      }
+    },
+
+    "Route53Record" : {
+      "Type" : "AWS::Route53::RecordSet",
+      "Properties" : {
+        "HostedZoneName" : { "Fn::Join" : [ "", [ { "Ref": "HostedZoneName" }, "." ]] },
+        "Comment" : { "Fn::Join" : [ "", [ "DNS name for ", { "Ref": "Role" }, " in ", { "Ref": "Environment" } ]]},
+        "Name" : { "Fn::Join" : [ "", [ { "Ref": "Role" }, ".", { "Ref": "Environment" }, ".", { "Ref": "AWS::Region"}, ".", { "Ref": "HostedZoneName" }, "." ] ] },
+        "Type" : "CNAME",
+        "TTL" : "300",
+        "ResourceRecords" : [ { "Fn::GetAtt": ["ElasticSearchDomain", "DomainEndpoint" ] } ]
+      }
+    }
+  },
+  "Outputs" : {
+    "ElasticSearchEndpointAddress": {
+      "Description": "ElasticSerach Endpoint Domain",
+      "Value": { "Fn::GetAtt": ["ElasticSearchDomain", "DomainEndpoint" ] }
+    },
+    "Route53Domain": {
+      "Description": "Route 53 Domain",
+      "Value": { "Ref": "Route53Record" }
+    }
+  }
+}

@@ -1,0 +1,407 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Nested CloudFormation Stack to Group VPC DMZ and Environment Networking.",
+
+  "Parameters": {
+    "Project": {
+      "Description": "Project name.",
+      "Type": "String",
+      "Default": ""
+    },
+    "PrivateDomain": {
+      "Description": "Private domain name.",
+      "Type": "String",
+      "Default": ""
+    },
+    "PublicDomain": {
+      "Description": "Public domain name.",
+      "Type": "String",
+      "Default": ""
+    },
+    "CloudToolsBucket": {
+      "Description":"Name of S3 bucket containing CloudTools scripts.",
+      "Type": "String",
+      "Default": ""
+    },
+    "BootstrapBucket": {
+      "Description":"Name of S3 bucket containing bootstrap scripts. Include path to bootstrap.",
+      "Type": "String",
+      "Default": "rightbrain-aws-tools-us-east-1"
+    },
+    "ChefBucket": {
+      "Description":"Name of S3 bucket containing chef packages.",
+      "Type": "String",
+      "Default": ""
+    },
+    "CommonBootstrapFile": {
+      "Description": "Name of common bootstrap file to be used by many instances.",
+      "Type": "String",
+      "Default": "common.sh"
+    },
+    "CloudFormationBucket": {
+      "Description": "Name of S3 bucket containing CloudFormation templates. Include path to CFN Templates.",
+      "Type": "String",
+      "Default": "rightbrain-aws-tools-us-east-1"
+    },
+    "BastionEC2Key": {
+      "Description": "Bastion EC2 key pair to be used across instances. If using appended region, do not include.",
+      "Type": "String",
+      "Default": "bastion-"
+    },
+    "CommonEC2Key": {
+      "Description": "Common EC2 key pair to be used across instances. If using appended region, do not include.",
+      "Type": "String",
+      "Default": "common-"
+    },
+    "Environment": {
+      "Description": "Environment name assigned to EC2 instances (e.g. 'prod' or 'test').",
+      "Type": "String", 
+      "Default": "Live",
+      "ConstraintDescription": "Must be a string."
+    },
+    "MacroEnvironment": {
+      "Description": "Environment name assigned to EC2 instances (e.g. 'prod' or 'test').",
+      "Type": "String", 
+      "Default": "Live",
+      "ConstraintDescription": "Must be a string."
+    },
+    "Release" : {
+      "Description" : "Release Number",
+      "Type" : "String",
+      "Default" : "0.0.1"
+    },
+    "SSLCertId": {
+      "Description": "SSL Cert Id",
+      "Type": "String",
+      "Default": "",
+      "ConstraintDescription": "Must be a Id."
+    },
+    "VPNCIDR" : {
+      "Description" : "CIDR block of the VPC.",
+      "Type" : "String",
+      "MinLength" : "9",
+      "MaxLength" : "18",
+      "Default" : "10.0.0.0/8",
+      "AllowedPattern" : "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})",
+      "ConstraintDescription" : "Must be valid CIDR notation (i.e. x.x.x.x/x)."
+    },
+    "InternalHostedZone" : {
+      "Description" : "Route53 private hosted zone",
+      "Type" : "String"
+    },
+    "BastionSSHFrom":{
+      "Description":"Lockdown SSH access to the bastion host",
+      "Type":"String",
+      "MinLength":"9",
+      "MaxLength":"18",
+      "Default":"0.0.0.0/0",
+      "AllowedPattern":"(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})",
+      "ConstraintDescription":"must be a valid CIDR range of the form x.x.x.x/x."
+    },
+    "VirtualPrivateGateway" : {
+      "Description" : "VGW ID for VPNs",
+      "Type" : "String",
+      "Default": ""
+    }
+  },
+ 
+  "Mappings": {
+    "AmazonLinux201509" : {
+      "us-east-1"      : { "64HVMGP2" : "ami-60b6c60a", "64PVStandard" : "ami-971066f2", "CodeDeployHVM": "ami-25c5674e" },
+      "us-west-1"      : { "64HVMGP2" : "ami-cd3aff89", "64PVStandard" : "ami-c93aff8d" },
+      "us-west-2"      : { "64HVMGP2" : "ami-9ff7e8af", "64PVStandard" : "ami-bdf7e88d" },
+      "eu-central-1"   : { "64HVMGP2" : "ami-daaeaec7", "64PVStandard" : "ami-a0aeaebd" },
+      "eu-west-1"      : { "64HVMGP2" : "ami-69b9941e", "64PVStandard" : "ami-8fbe93f8" },
+      "ap-northeast-1" : { "64HVMGP2" : "ami-9a2fb89a", "64PVStandard" : "ami-a42fb8a4" },
+      "ap-southeast-1" : { "64HVMGP2" : "ami-52978200", "64PVStandard" : "ami-4c97821e" },
+      "ap-southeast-2" : { "64HVMGP2" : "ami-c11856fb", "64PVStandard" : "ami-851856bf" },
+      "sa-east-1"      : { "64HVMGP2" : "ami-3b0c9926", "64PVStandard" : "ami-010c991c" }
+    }
+  }, 
+  "Resources": {
+     "SNS": {
+       "Type": "AWS::CloudFormation::Stack",
+       "Properties": {
+         "TemplateURL": { "Fn::Join": [ "", [ "https://s3.amazonaws.com/", { "Ref": "CloudFormationBucket" }, "/Network/SNS.json" ]] },
+         "Parameters": {
+           "Project": { "Ref": "Project" },
+           "Environment": { "Ref": "MacroEnvironment" }
+         }
+       }
+     },
+     "IAM": {
+       "Type": "AWS::CloudFormation::Stack",
+       "Properties": {
+         "TemplateURL": { "Fn::Join": [ "", [ "https://s3.amazonaws.com/", { "Ref": "CloudFormationBucket" }, "/Network/IAM.json" ]] },
+         "Parameters": {
+           "CloudToolsBucket": { "Ref": "CloudToolsBucket" }
+         }
+       }
+     },
+     "VPC": {
+       "Type": "AWS::CloudFormation::Stack",
+       "Properties": {
+         "TemplateURL": { "Fn::Join": [ "", [ "https://s3.amazonaws.com/", { "Ref": "CloudFormationBucket" }, "/Network/VPC.json" ]] },
+         "Parameters": {
+           "VPNCIDR": { "Ref": "VPNCIDR" }, 
+           "VirtualPrivateGateway": { "Ref": "VirtualPrivateGateway" },
+           "Project": { "Ref": "Project" },
+           "Environment": { "Ref": "MacroEnvironment" },
+           "InternalDomain": { "Ref": "PrivateDomain" }
+         }
+       }
+     },
+     "SecurityGroups": {
+       "Type": "AWS::CloudFormation::Stack",
+       "Properties": {
+         "TemplateURL": { "Fn::Join": [ "", [ "https://s3.amazonaws.com/", { "Ref": "CloudFormationBucket" }, "/Network/Security_Groups.json" ]] },
+         "Parameters": {
+           "BastionSSHFrom": { "Ref": "BastionSSHFrom" },
+           "VPC": { "Fn::GetAtt": [ "VPC", "Outputs.VPC" ] },
+           "VPCCIDR": { "Fn::GetAtt": [ "VPC", "Outputs.VPCCIDR" ] },
+           "VPNCIDR": { "Ref": "VPNCIDR" },
+           "Project": { "Ref": "Project" },
+           "Environment": { "Ref": "MacroEnvironment" }
+         }
+       }
+     },
+    "Subnets": {
+      "Type": "AWS::CloudFormation::Stack",
+      "Properties": {
+        "TemplateURL": { "Fn::Join": [ "", [ "https://s3.amazonaws.com/", { "Ref": "CloudFormationBucket" }, "/Network/Subnets.json" ]] },
+        "Parameters": {
+          "VPC": { "Fn::GetAtt": [ "VPC", "Outputs.VPC" ] },
+          "Project": { "Ref": "Project" },
+          "Environment": { "Ref": "MacroEnvironment" },
+          "PublicRouteTable": { "Fn::GetAtt": [ "VPC", "Outputs.PublicRouteTable" ] },
+          "PrivateRouteTableAz1": { "Fn::GetAtt": [ "VPC", "Outputs.PrivateRouteTableAz1" ] },
+          "PrivateRouteTableAz2": { "Fn::GetAtt": [ "VPC", "Outputs.PrivateRouteTableAz2" ] },
+          "PrivateRouteTableAz3": { "Fn::GetAtt": [ "VPC", "Outputs.PrivateRouteTableAz3" ] }
+        }
+      }
+    },
+    "NAT": { 
+      "Type": "AWS::CloudFormation::Stack", 
+      "Properties": { 
+        "TemplateURL":                          { "Fn::Join": [ "", [ "https://s3.amazonaws.com/", { "Ref" : "CloudFormationBucket" }, "/Network/Nat.json" ] ] }, 
+        "Parameters": { 
+           "VPC": { "Fn::GetAtt": [ "VPC", "Outputs.VPC" ] },
+           "Project": { "Ref": "Project" },
+           "Environment": { "Ref": "Environment" },
+           "PrivateRouteTableAz1": { "Fn::GetAtt": [ "VPC", "Outputs.PrivateRouteTableAz1" ] },
+           "PrivateRouteTableAz2": { "Fn::GetAtt": [ "VPC", "Outputs.PrivateRouteTableAz2" ] },
+           "PrivateRouteTableAz3": { "Fn::GetAtt": [ "VPC", "Outputs.PrivateRouteTableAz3" ] },
+           "DMZSubnetAz1": { "Fn::GetAtt": [ "Subnets", "Outputs.PublicSubnetAz1" ] }, 
+           "DMZSubnetAz2": { "Fn::GetAtt": [ "Subnets", "Outputs.PublicSubnetAz2" ] }, 
+           "DMZSubnetAz3": { "Fn::GetAtt": [ "Subnets", "Outputs.PublicSubnetAz3" ] }
+        } 
+      } 
+    }, 
+    "Bastion": {
+      "DependsOn": [  ],
+      "Type": "AWS::CloudFormation::Stack",
+      "Properties": {
+        "TemplateURL":                          { "Fn::Join": [ "", [ "https://s3.amazonaws.com/", { "Ref" : "CloudFormationBucket" }, "/Network/amzn_linux_asg.json" ] ] },
+        "Parameters": {
+          "IsMultiAZStack":                     "True",
+          "Role":                               "bastion",
+          "Environment":                        { "Ref": "MacroEnvironment" },
+          "InstanceType":                       "t2.micro",
+          "AMI":                                { "Fn::FindInMap" : [ "AmazonLinux201509", { "Ref" : "AWS::Region" }, "64HVMGP2"] },
+          "BootstrapFileName":                  "bastion.sh",
+          "AssociatePublicIPAddress":           "True",
+          "RootEBSVolumeSize":                  "10",
+          "EBSVolumeType":                      "gp2",
+          "DeleteEBSVolumesOnTermination":      "True",
+
+          "ASGHealthCheckType":                 "EC2",
+          "HealthCheckGracePeriod":             "300",
+          "MaxInstancesCount":                  "2",
+          "MinInstancesCount":                  "1",
+          "ScaleUpAdjustment":                  "1",
+          "ScaleUpCooldown":                    "300",
+          "ScaleDownAdjustment":                "-1",
+          "ScaleDownCooldown":                  "300",
+
+          "HighCPUThreshold":                   "101",
+          "HighCPUPeriod":                      "60",
+          "LowCPUThreshold":                    "10",
+          "LowCPUPeriod":                       "60",
+
+          "RollingUpdateMinInstancesInService": "1",
+          "RollingUpdateMaxBatchSize":          "1",
+          "RollingUpdatePauseTime":             "PT0M30S",
+
+          "IAMInstanceProfile":                 { "Fn::GetAtt" : [ "IAM", "Outputs.BastionInstanceProfile" ] },
+          "InstanceSubnetList":                 { "Fn::Join": [ ",", [ { "Fn::GetAtt" : [ "Subnets", "Outputs.DMZSubnetAz1" ] },{ "Fn::GetAtt" : [ "Subnets", "Outputs.DMZSubnetAz2" ] },{ "Fn::GetAtt" : [ "Subnets", "Outputs.DMZSubnetAz3" ] } ]]},
+          "InstanceSecurityGroups":             { "Fn::GetAtt" : [ "SecurityGroups", "Outputs.BastionSecurityGroup" ] },
+
+          "CloudWatchAlarmSNSTopic":            { "Fn::GetAtt" : [ "SNS", "Outputs.NetworkOperations" ] },
+          "EC2KeyPair":                         { "Fn::Join": [ "", [ { "Ref" : "BastionEC2Key" }, "rbn-ops-2016-", { "Ref":"AWS::Region" } ] ] },
+          "BootstrapS3BucketName":              { "Ref": "BootstrapBucket" },
+          "ChefS3BucketName":                   { "Ref": "ChefBucket" },
+          "Project":                        	{ "Ref": "Project" }
+        }
+      }
+    },
+    "Saltmaster": {
+      "DependsOn": [  ],
+      "Type": "AWS::CloudFormation::Stack",
+      "Properties": {
+        "TemplateURL":{ "Fn::Join": [ "", [ "https://s3.amazonaws.com/", { "Ref" : "CloudFormationBucket" }, "/Network/amzn_linux_asg.json" ] ] },
+        "Parameters": {
+          "IsMultiAZStack":"True",
+          "Role":"saltmaster",
+          "Environment":{ "Ref": "MacroEnvironment" },
+          "InstanceType":"t2.micro",
+          "AMI":"ami-6d1c2007",
+          "BootstrapFileName":"saltmaster.sh",
+          "AssociatePublicIPAddress":"True",
+          "RootEBSVolumeSize":"10",
+          "EBSVolumeType":"gp2",
+          "DeleteEBSVolumesOnTermination":"True",
+          "ASGHealthCheckType":"EC2",
+          "HealthCheckGracePeriod":"300",
+          "MaxInstancesCount":"2",
+          "MinInstancesCount":"1",
+          "ScaleUpAdjustment":"1",
+          "ScaleUpCooldown":"300",
+          "ScaleDownAdjustment":"-1",
+          "ScaleDownCooldown":"300",
+          "HighCPUThreshold":"101",
+          "HighCPUPeriod":"60",
+          "LowCPUThreshold":"10",
+          "LowCPUPeriod":"60",
+          "RollingUpdateMinInstancesInService": "1",
+          "RollingUpdateMaxBatchSize":"1",
+          "RollingUpdatePauseTime":"PT0M30S",
+          "IAMInstanceProfile":{ "Fn::GetAtt" : [ "IAM", "Outputs.BastionInstanceProfile" ] },
+          "InstanceSubnetList":{ "Fn::Join": [ ",", [ {"Fn::GetAtt" : ["Subnets", "Outputs.PublicSubnetAz1" ] },{"Fn::GetAtt" : ["Subnets", "Outputs.PublicSubnetAz2" ] },{"Fn::GetAtt" : ["Subnets", "Outputs.PublicSubnetAz3"] } ]]},
+          "InstanceSecurityGroups":{"Fn::GetAtt" : [ "SecurityGroups", "Outputs.Saltmaster2016SecurityGroup"] },
+          "CloudWatchAlarmSNSTopic":{"Fn::GetAtt" : [ "SNS", "Outputs.NetworkOperations"]},
+          "EC2KeyPair":{"Fn::Join": ["", [ {"Ref" : "CommonEC2Key" }, "rbn-ops-2016-", {"Ref":"AWS::Region"} ] ]},
+          "BootstrapS3BucketName":{"Ref": "BootstrapBucket" },
+          "ChefS3BucketName":{ "Ref": "ChefBucket" },
+          "Project":{ "Ref": "Project" }
+        }
+      }
+    },
+    "Dashboard": {
+        "Type": "AWS::CloudFormation::Stack",
+        "Properties": {
+            "TemplateURL": {
+                "Fn::Join": [ "", [ "https://s3.amazonaws.com/", { "Ref" : "CloudFormationBucket" }, "/Dashboard.json" ] ]
+            },
+            "Parameters": {
+                "IsMultiAZStack": "True",
+                "Role": "saltmaster",
+                "Environment":{ "Ref": "MacroEnvironment" },
+                "InstanceType":"t2.micro",
+                "AMI":{ "Fn::FindInMap" : [ "AmazonLinux201509", { "Ref" : "AWS::Region" }, "64HVMGP2"] },
+                "BootstrapFileName":"bootstrap.sh",
+                "AssociatePublicIPAddress":"True",
+                "RootEBSVolumeSize":"10",
+                "EBSVolumeType":"gp2",
+                "DeleteEBSVolumesOnTermination":"True",
+                "ASGHealthCheckType":"EC2",
+                "HealthCheckGracePeriod":"300",
+                "MaxInstancesCount":"2",
+                "MinInstancesCount":"1",
+                "ScaleUpAdjustment":"1",
+                "ScaleUpCooldown":"300",
+                "ScaleDownAdjustment":"-1",
+                "ScaleDownCooldown":"300",
+                "HighCPUThreshold":"101",
+                "HighCPUPeriod":"60",
+                "LowCPUThreshold":"10",
+                "LowCPUPeriod":"60",
+                "RollingUpdateMinInstancesInService":"1",
+                "RollingUpdateMaxBatchSize":"1",
+                "RollingUpdatePauseTime":"PT0M30S",
+                "IAMInstanceProfile":{"Fn::GetAtt" : ["IAM", "Outputs.BastionInstanceProfile"]},
+                "InstanceSubnetList":{
+                    "Fn::Join": [",",
+                        [
+                            {"Fn::GetAtt" : ["Subnets", "Outputs.PrivateSubnetAz1"]},
+                            {"Fn::GetAtt" : ["Subnets", "Outputs.PrivateSubnetAz2"]},
+                            {"Fn::GetAtt" : ["Subnets", "Outputs.PrivateSubnetAz3"]}
+                        ]
+                    ]
+                },
+                "InstanceSecurityGroups":{"Fn::GetAtt" : ["SecurityGroups", "Outputs.DashboardSecurityGroup" ]},
+                "CloudWatchAlarmSNSTopic":{"Fn::GetAtt" : ["SNS", "Outputs.NetworkOperations" ]},
+                "EC2KeyPair":{"Fn::Join": ["", [{ "Ref" : "CommonEC2Key" }, "rbn-ops-2016-", { "Ref":"AWS::Region" }]]},
+                "BootstrapS3BucketName":{"Ref": "BootstrapBucket"},
+                "Project":{"Ref": "Project"}
+            }
+        }
+    }
+
+  },
+  "Outputs": {
+    "VPC": {
+      "Description": "ID for Virtual Pricate Cloud",
+      "Value": { "Fn::GetAtt": [ "VPC", "Outputs.VPC" ] }
+    },
+    "VPCCIDR": {
+      "Description": "CIDR for Virtual Pricate Cloud",
+      "Value": { "Fn::GetAtt": [ "VPC", "Outputs.VPCCIDR" ] }
+    },
+    "BastionSecurityGroup": {
+      "Description": "Id of Bastion Security Group",
+      "Value": { "Fn::GetAtt": [ "SecurityGroups", "Outputs.BastionSecurityGroup" ] }
+    },
+    "DashboardSecurityGroup": {
+        "Description": "Id of Dashboard Security Group",
+        "Value": { "Fn::GetAtt": [ "SecurityGroups", "Outputs.DashboardSecurityGroup" ] }
+    },
+    "NetworkOperationsSNSTopic": {
+      "Description": "Network Operations SNS topic",
+      "Value": { "Fn::GetAtt": [ "SNS", "Outputs.NetworkOperations" ] }
+    },
+    "PublicSubnets": {
+      "Description": "Comma Separated Subnet Ids for Public",
+      "Value": { "Fn::Join": [ ",", [ { "Fn::GetAtt": [ "Subnets", "Outputs.PublicSubnetAz1" ] },
+                                      { "Fn::GetAtt": [ "Subnets", "Outputs.PublicSubnetAz2" ] },
+                                      { "Fn::GetAtt": [ "Subnets", "Outputs.PublicSubnetAz3" ] } ] ] }
+    },
+    "PrivateSubnets": {
+      "Description": "Comma Separated Subnet Ids for Private",
+      "Value": { "Fn::Join": [ ",", [ { "Fn::GetAtt": [ "Subnets", "Outputs.PrivateSubnetAz1" ] },
+                                      { "Fn::GetAtt": [ "Subnets", "Outputs.PrivateSubnetAz2" ] },
+                                      { "Fn::GetAtt": [ "Subnets", "Outputs.PrivateSubnetAz3" ] } ] ] }
+    },
+    "PublicSubnetAz1": {
+      "Description": "Subnet Id for Public Az1",
+      "Value": { "Fn::GetAtt": [ "Subnets", "Outputs.PublicSubnetAz1" ] }
+    },
+    "PublicSubnetAz2": {
+      "Description": "Subnet Id for Public Az2",
+      "Value": { "Fn::GetAtt": [ "Subnets", "Outputs.PublicSubnetAz2" ] }
+    },
+    "PublicSubnetAz3": {
+      "Description": "Subnet Id for Public Az3",
+      "Value": { "Fn::GetAtt": [ "Subnets", "Outputs.PublicSubnetAz3" ] }
+    },
+    "PrivateSubnetAz1": {
+      "Description": "Subnet Id for Private Az1",
+      "Value": { "Fn::GetAtt": [ "Subnets", "Outputs.PrivateSubnetAz1" ] }
+    },
+    "PrivateSubnetAz2": {
+      "Description": "Subnet Id for Private Az2",
+      "Value": { "Fn::GetAtt": [ "Subnets", "Outputs.PrivateSubnetAz2" ] }
+    },
+    "PrivateSubnetAz3": {
+      "Description": "Subnet Id for Private Az3",
+      "Value": { "Fn::GetAtt": [ "Subnets", "Outputs.PrivateSubnetAz3" ] }
+    },
+    "RDSSubnetGroup": {
+      "Description": "Subnet Group for RDS",
+      "Value": { "Fn::GetAtt": [ "Subnets", "Outputs.RDSSubnetGroup" ] }
+    },
+    "ElastiCacheSubnetGroup": {
+      "Description": "Subnet Group for ElastiCache",
+      "Value": { "Fn::GetAtt": [ "Subnets", "Outputs.ElastiCacheSubnetGroup" ] }
+    }
+  }
+}

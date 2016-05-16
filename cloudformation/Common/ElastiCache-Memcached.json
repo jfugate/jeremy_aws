@@ -1,0 +1,102 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "ElastiCache",
+
+  "Parameters" : {
+    "Role" : {
+      "Description" : "Role of the cluster",
+      "Type" : "String",
+      "Default" : "TEST"
+    },
+    "Environment" : {
+      "Description" : "The environment this is being run in, eg prod, stage, test.",
+      "Type" : "String",
+      "Default" : ""
+    },
+    "Project" : {
+      "Description" : "The abbreviated project name, to be used in topic names, etc.",
+      "Type" : "String",
+      "Default" : ""
+    },
+    "NodeSize" : {
+      "Description" : "The size nodes to use.",
+      "Type" : "String",
+      "Default" : "cache.t2.micro"
+    },
+    "ECacheEngine" : {
+      "Description" : "The Engine to use for Memcache",
+      "Type" : "String",
+      "Default" : "memcached",
+      "AllowedValues" : ["memcached", "redis"]
+    },
+    "EngineVersion": {
+      "Description": "The version of the cache engine to be used for this cluster.",
+      "Type": "String",
+      "Default": ""
+    },
+    "NumberOfNodes" : {
+      "Description": "The number of nodes to use.",
+      "Type" : "String",
+      "Default": "1"
+    },
+    "ElastiCacheSubnetGroup" : {
+      "Description" : "The ElastiCacheSubnetGroup ID to be used for Elasticache.",
+      "Type": "String"
+    },
+    "ElastiCacheSecurityGroup": {
+      "Description" : "Security Group ID for ElastiCache",
+      "Type": "AWS::EC2::SecurityGroup::Id"
+    },
+    "HostedZoneName": {
+      "Description": "FQDN of the domain you want to add record to",
+      "Type": "String",
+      "Default": ""
+    }
+  },
+  "Conditions": {
+    "EngineVersionCondition": { "Fn::Equals": [ { "Ref": "EngineVersion" }, ""] }
+  },
+  "Resources" : {
+    "ElastiCacheCluster": {
+      "Type": "AWS::ElastiCache::CacheCluster",
+      "Properties": {
+        "AutoMinorVersionUpgrade": "true",
+        "Engine": { "Ref": "ECacheEngine" },
+        "ClusterName": { "Fn::Join": [ "-", [ { "Ref": "Environment" }, { "Ref": "Role" } ] ] },
+        "CacheNodeType": { "Ref" : "NodeSize" },
+        "NumCacheNodes": { "Ref" : "NumberOfNodes"},
+        "VpcSecurityGroupIds": [ {"Ref" : "ElastiCacheSecurityGroup" } ],
+        "CacheSubnetGroupName" : { "Ref" : "ElastiCacheSubnetGroup" },
+        "EngineVersion": {
+          "Fn::If": [
+            "EngineVersionCondition",
+            { "Ref" : "AWS::NoValue" },
+            { "Ref": "EngineVersion" }
+          ]
+        }
+      }
+    },
+    "Route53Record" : {
+      "Type" : "AWS::Route53::RecordSet",
+      "Properties" : {
+        "HostedZoneName" : { "Fn::Join" : [ "", [ { "Ref": "HostedZoneName" }, "." ]] },
+        "Comment" : { "Fn::Join" : [ "", [ "DNS name for ", { "Ref": "Role" }, " in ", { "Ref": "Environment" } ]]},
+        "Name" : { "Fn::Join" : [ "", [ { "Ref": "Role" }, ".", { "Ref": "Environment" }, ".", { "Ref": "AWS::Region"}, ".", { "Ref": "HostedZoneName" }, "." ] ] },
+        "Type" : "CNAME",
+        "TTL" : "300",
+        "ResourceRecords" : [ { "Fn::GetAtt": ["ElastiCacheCluster", "ConfigurationEndpoint.Address" ] } ]
+      }
+    }
+  },
+  "Outputs" : {
+    "MemcachedEndpointAddress": {
+      "Description": "Memcached ElastiCache Endpoint",
+      "Value": { "Fn::GetAtt": ["ElastiCacheCluster", "ConfigurationEndpoint.Address" ] }
+    },
+    "MemcachedEndpointPort": {
+      "Description": "Memcached ElastiCache Endpoint",
+      "Value": { "Fn::GetAtt": ["ElastiCacheCluster", "ConfigurationEndpoint.Port" ] }
+    }
+  }
+}

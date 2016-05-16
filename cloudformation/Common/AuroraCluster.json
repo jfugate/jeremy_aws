@@ -1,0 +1,171 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "Aurora Cluster and DNS.",
+
+  "Parameters" : {
+   "RDSSubnetGroup":{
+         "Description":"Physical ID of DBSubnetGroup",
+         "Type":"String",
+         "Default":""
+    },
+   "DBUser":{
+         "Description":"Database Password",
+         "Type":"String",
+         "Default":""
+    },
+   "DBPassword":{
+         "Description":"Database Password",
+         "Type":"String",
+         "Default":"",
+         "NoEcho": "True"
+    },
+    "DBName":{
+         "Description":"The Default database's name",
+         "Type":"String",
+         "Default":""
+    },
+    "DBSnapshotID":{
+         "Description":"RDS Snapshot to build the prod database off of.",
+         "Type":"String",
+         "Default":""
+    },
+    "BackUpRetention":{
+         "Description":"How many days to keep backups",
+         "Type":"String",
+         "Default":"3"
+    },
+    "DBEngine":{
+         "Description":"Database Engine",
+         "Type":"String",
+         "Default":"aurora",
+         "AllowedValues": [ "aurora" ]
+    },
+    "DBSecurityGroup":{
+          "Description":"Physical ID of DBSecurityGroup",
+          "Type":"String",
+          "Default":""
+    },
+    "EngineVersion":{
+         "Description":"Database Engine version",
+         "Type":"String",
+         "Default":"5.6.10a",
+         "AllowedValues": [ "5.6.10a" ]
+    },
+    "Port":{
+         "Description":"Port Number for RDS to listen on.",
+         "Type": "Number"
+    },
+    "AppName":{
+         "Description":"Name of application",
+         "Type": "String"
+    },
+    "Environment":{
+         "Description":"Name of Environment",
+         "Type": "String"
+    },
+    "Project":{
+         "Description":"Name of Project",
+         "Type": "String"
+    },
+    "DBParameterGroup":{
+         "Description":"Parameter Group name for RDS",
+         "Type": "String",
+         "Default": ""
+    },
+    "Release" : {
+      "Description" : "Release Number",
+      "Type" : "String",
+      "Default" : "0.0.1"
+    },
+    "HostedZoneName": {
+      "Description": "FQDN of the domain you want to add record to",
+      "Type": "String",
+      "Default": ""
+    },
+    "Role": {
+      "Description": "Name which will be applied to EC2 instances in the ASG (e.g. 'web' or 'app').",
+      "Type": "String",
+      "Default": "",
+      "ConstraintDescription": "Must be a string."
+    }
+  },
+
+  "Mappings" : {
+  },
+  "Conditions": {
+    "SnapshotCondition": { "Fn::Equals": [ { "Ref": "DBSnapshotID" }, ""] },
+    "ParameterGroupCondition": { "Fn::Equals": [ { "Ref": "DBParameterGroup" }, ""] }
+  },
+
+  "Resources" : {
+    "Aurora": {
+      "Type" : "AWS::RDS::DBCluster",
+      "DeletionPolicy" : "Snapshot",
+      "Properties" : {
+        "StorageEncrypted": { "Fn::If" : [ "SnapshotCondition", "True", { "Ref": "AWS::NoValue" } ] },
+        "BackupRetentionPeriod" : { "Ref": "BackUpRetention"},
+        "DatabaseName" : {
+          "Fn::If": [
+            "SnapshotCondition",
+            { "Ref": "DBName" },
+            { "Ref" : "AWS::NoValue" }
+          ]
+        },
+        "DBClusterParameterGroupName" : { "Fn::If": [ "ParameterGroupCondition",  { "Ref": "AWS::NoValue" }, { "Ref": "DBParameterGroup" } ] },
+        "DBSubnetGroupName" :  { "Ref" : "RDSSubnetGroup" },
+        "Engine": { "Ref": "DBEngine" },
+        "EngineVersion": { "Ref": "EngineVersion"},
+        "MasterUsername": {
+          "Fn::If": [
+            "SnapshotCondition",
+            { "Ref": "DBUser" },
+            { "Ref" : "AWS::NoValue" }
+          ]
+        },
+        "MasterUserPassword": {
+          "Fn::If": [
+            "SnapshotCondition",
+            { "Ref": "DBPassword" },
+            { "Ref" : "AWS::NoValue" }
+          ]
+        },
+        "Port" : { "Ref": "Port" },
+        "PreferredBackupWindow" : "10:07-10:37",
+        "PreferredMaintenanceWindow" : "thu:06:47-thu:07:17",
+        "DBSubnetGroupName" :  { "Ref" : "RDSSubnetGroup" },
+        "SnapshotIdentifier": { "Fn::If" : [ "SnapshotCondition", { "Ref": "AWS::NoValue" }, { "Ref": "DBSnapshotID" }] },
+        "VpcSecurityGroupIds" : [ { "Ref" : "DBSecurityGroup" } ],
+        "Tags" : [
+            { "Key" : "Name", "Value" : { "Fn::Join": [ "", [ { "Ref": "AppName" }, "-", { "Ref": "Environment" } ]]} },
+            { "Key" : "project", "Value" : { "Ref": "Project" } }
+        ]
+      }
+    },
+    "Route53Record" : {
+      "Type" : "AWS::Route53::RecordSet",
+      "Properties" : {
+        "HostedZoneName" : { "Fn::Join" : [ "", [ { "Ref": "HostedZoneName" }, "." ]] },
+        "Comment" : { "Fn::Join" : [ "", [ "DNS name for ", { "Ref": "Role" }, " in ", { "Ref": "Environment" } ]]},
+        "Name" : { "Fn::Join" : [ "", [ { "Ref": "Role" }, ".", { "Ref": "Environment" }, ".", { "Ref": "AWS::Region"}, ".", { "Ref": "HostedZoneName" }, "." ] ] },
+        "Type" : "CNAME",
+        "TTL" : "300",
+        "ResourceRecords" : [ { "Fn::GetAtt": [ "Aurora", "Endpoint.Address" ] } ]
+      }
+    }
+  },
+  "Outputs" : {
+    "DNSEndpoint": {
+      "Description": "Consumable Endpoint in Route53",
+      "Value": { "Fn::Join" : [ "", [ { "Ref": "Role" }, ".", { "Ref": "Environment" }, ".", { "Ref": "HostedZoneName" } ] ] }
+    },
+    "Endpoint": {
+      "Description": "The endpoint URL of RDS instance created",
+      "Value": { "Fn::Join": [ ":", [ { "Fn::GetAtt": ["Aurora", "Endpoint.Address"] }, { "Fn::GetAtt": ["Aurora", "Endpoint.Address"] } ] ] }
+    },
+    "ClusterName": {
+      "Description": "Name of the Aurora Cluster",
+      "Value": { "Ref": "Aurora" }
+    }
+  }
+}

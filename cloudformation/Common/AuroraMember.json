@@ -1,0 +1,93 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "Aurora Member.",
+
+  "Parameters" : {
+   "RDSSubnetGroup":{
+         "Description":"Physical ID of DBSubnetGroup",
+         "Type":"String",
+         "Default":""
+    },
+   "RDSType":{
+         "Description":"Instance Type of the RDS stage prod instances",
+         "Type":"String",
+         "Default":"db.r3.large",
+         "AllowedValues": [ "db.r3.large", "db.r3.xlarge", "db.r3.2xlarge", "db.r3.4xlarge", "db.r3.8xlarge" ]
+    },
+    "DBEngine":{
+         "Description":"Database Engine",
+         "Type":"String",
+         "Default":"aurora",
+         "AllowedValues": [ "aurora" ]
+    },
+    "EngineVersion":{
+         "Description":"Database Engine version",
+         "Type":"String",
+         "Default":"5.6.10a",
+         "AllowedValues": [ "5.6.10a" ]
+    },
+    "AppName":{
+         "Description":"Name of application",
+         "Type": "String"
+    },
+    "Environment":{
+         "Description":"Name of Environment",
+         "Type": "String"
+    },
+    "Project":{
+         "Description":"Name of Project",
+         "Type": "String"
+    },
+    "DBParameterGroup":{
+         "Description":"Parameter Group name for RDS",
+         "Type": "String",
+         "Default": ""
+    },
+    "Release" : {
+      "Description" : "Release Number",
+      "Type" : "String",
+      "Default" : "0.0.1"
+    },
+    "Role": {
+      "Description": "Name which will be applied to EC2 instances in the ASG (e.g. 'web' or 'app').",
+      "Type": "String",
+      "Default": "",
+      "ConstraintDescription": "Must be a string."
+    },
+    "AuroraCluster": {
+      "Description": "Name of the Aurora Cluster to become a member of.",
+      "Type": "String",
+      "Default": "",
+      "ConstraintDescription": "Must be a string."
+    }
+  },
+
+  "Mappings" : {
+  },
+  "Conditions": {
+    "ParameterGroupCondition": { "Fn::Equals": [ { "Ref": "DBParameterGroup" }, ""] }
+  },
+
+  "Resources" : {
+    "AuroraMember1" : {
+      "Type" : "AWS::RDS::DBInstance",
+      "Properties" : {
+        "DBClusterIdentifier" : { "Ref" : "AuroraCluster" },
+        "AutoMinorVersionUpgrade" : "True",
+        "DBInstanceClass" : { "Ref" : "RDSType" },
+        "Engine": { "Ref": "DBEngine" },
+        "EngineVersion": { "Ref": "EngineVersion"},
+        "PreferredMaintenanceWindow" : "thu:06:47-thu:07:17",
+        "DBSubnetGroupName" :  { "Ref" : "RDSSubnetGroup" },
+        "Tags" : [
+            { "Key" : "Name", "Value" : { "Fn::Join": [ "", [ { "Ref": "AppName" }, "-", { "Ref": "Environment" } ]]} },
+            { "Key" : "project", "Value" : { "Ref": "Project" } }
+        ]
+     }
+  }
+
+  },
+  "Outputs" : {
+  }
+}

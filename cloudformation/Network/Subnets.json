@@ -1,0 +1,476 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Network Subnets",
+
+  "Parameters": {
+    "Project": {
+      "Description": "Project name.",
+      "Type": "String",
+      "Default": "",
+      "ConstraintDescription": "Must be a string."
+    },
+    "Environment" : {
+      "Description" : "Environment Name",
+      "Type" : "String",
+      "Default" : "dev-branch-1",
+      "ConstraintDescription" : "must be a string."
+    },
+    "VPC": {
+      "Type": "AWS::EC2::VPC::Id"
+    },
+    "PublicRouteTable": {
+      "Description": "Physical ID of Public Route Table",
+      "Type": "String"
+    },
+    "PrivateRouteTableAz1": {
+      "Description": "Physical ID of Private Route Table Az1",
+      "Type": "String"
+    },
+    "PrivateRouteTableAz2": {
+      "Description": "Physical ID of Private Route Table Az2",
+      "Type": "String"
+    },
+    "PrivateRouteTableAz3": {
+      "Description": "Physical ID of Private Route Table Az3",
+      "Type": "String"
+    }
+  },
+
+  "Mappings":{
+    "DMZAZ1": { 
+      "us-east-1": {
+        "SharedServices":     "10.0.0.0/24",
+        "Prod":               "10.0.64.0/24",
+        "Test":               "10.0.128.0/24",
+        "Dev":                "10.0.192.0/24"
+      },
+      "us-west-2": {
+        "SharedServices":     "10.1.0.0/24",
+        "Prod":               "10.1.64.0/24",
+        "Test":               "10.1.128.0/24",
+        "Dev":                "10.1.192.0/24"
+      },
+      "ap-southeast-2": {
+        "SharedServices":     "10.2.0.0/24",
+        "Prod":               "10.2.64.0/24",
+        "Test":               "10.2.128.0/24",
+        "Dev":                "10.2.192.0/24"
+      }
+    },  
+    "DMZAZ2": { 
+      "us-east-1": {
+        "SharedServices":     "10.0.1.0/24",
+        "Prod":               "10.0.65.0/24",
+        "Test":               "10.0.129.0/24",
+        "Dev":                "10.0.193.0/24"
+      },
+      "us-west-2": {
+        "SharedServices":     "10.1.1.0/24",
+        "Prod":               "10.1.65.0/24",
+        "Test":               "10.1.129.0/24",
+        "Dev":                "10.1.193.0/24"
+      },
+      "ap-southeast-2": {
+        "SharedServices":     "10.2.1.0/24",
+        "Prod":               "10.2.65.0/24",
+        "Test":               "10.2.129.0/24",
+        "Dev":                "10.2.193.0/24"
+      }
+    },  
+    "DMZAZ3": { 
+      "us-east-1": {
+        "SharedServices":     "10.0.2.0/24",
+        "Prod":               "10.0.66.0/24",
+        "Test":               "10.0.130.0/24",
+        "Dev":                "10.0.194.0/24"
+      },
+      "us-west-2": {
+        "SharedServices":     "10.1.2.0/24",
+        "Prod":               "10.1.66.0/24",
+        "Test":               "10.1.130.0/24",
+        "Dev":                "10.1.194.0/24"
+      },
+      "ap-southeast-2": {
+        "SharedServices":     "10.2.2.0/24",
+        "Prod":               "10.2.66.0/24",
+        "Test":               "10.2.130.0/24",
+        "Dev":                "10.2.194.0/24"
+      }
+    },
+    "PUBLICAZ1": { 
+      "us-east-1": {
+        "SharedServices":     "10.0.4.0/22",
+        "Prod":               "10.0.68.0/22",
+        "Test":               "10.0.132.0/22",
+        "Dev":                "10.0.196.0/22"
+      },
+      "us-west-2": {
+        "SharedServices":     "10.1.4.0/22",
+        "Prod":               "10.1.68.0/22",
+        "Test":               "10.1.132.0/22",
+        "Dev":                "10.1.196.0/22"
+      },
+      "ap-southeast-2": {
+        "SharedServices":     "10.2.4.0/22",
+        "Prod":               "10.2.68.0/22",
+        "Test":               "10.2.132.0/22",
+        "Dev":                "10.2.196.0/22"
+      }
+    },  
+    "PUBLICAZ2": { 
+      "us-east-1": {
+        "SharedServices":     "10.0.8.0/22",
+        "Prod":               "10.0.72.0/22",
+        "Test":               "10.0.136.0/22",
+        "Dev":                "10.0.200.0/22"
+      },
+      "us-west-2": {
+        "SharedServices":     "10.1.8.0/22",
+        "Prod":               "10.1.72.0/22",
+        "Test":               "10.1.136.0/22",
+        "Dev":                "10.1.200.0/22"
+      },
+      "ap-southeast-2": {
+        "SharedServices":     "10.2.8.0/22",
+        "Prod":               "10.2.72.0/22",
+        "Test":               "10.2.136.0/22",
+        "Dev":                "10.2.200.0/22"
+      }
+    },  
+    "PUBLICAZ3": { 
+      "us-east-1": {
+        "SharedServices":     "10.0.12.0/22",
+        "Prod":               "10.0.76.0/22",
+        "Test":               "10.0.140.0/22",
+        "Dev":                "10.0.204.0/22"
+      },
+      "us-west-2": {
+        "SharedServices":     "10.1.12.0/22",
+        "Prod":               "10.1.76.0/22",
+        "Test":               "10.1.140.0/22",
+        "Dev":                "10.1.204.0/22"
+      },
+      "ap-southeast-2": {
+        "SharedServices":     "10.2.12.0/22",
+        "Prod":               "10.2.76.0/22",
+        "Test":               "10.2.140.0/22",
+        "Dev":                "10.2.204.0/22"
+      }
+    },
+    "PRIVATEAZ1": { 
+      "us-east-1": {
+        "SharedServices":     "10.0.16.0/20",
+        "Prod":               "10.0.80.0/20",
+        "Test":               "10.0.144.0/20",
+        "Dev":                "10.0.208.0/20"
+      },
+      "us-west-2": {
+        "SharedServices":     "10.1.16.0/20",
+        "Prod":               "10.1.80.0/20",
+        "Test":               "10.1.144.0/20",
+        "Dev":                "10.1.208.0/20"
+      },
+      "ap-southeast-2": {
+        "SharedServices":     "10.2.16.0/20",
+        "Prod":               "10.2.80.0/20",
+        "Test":               "10.2.144.0/20",
+        "Dev":                "10.2.208.0/20"
+      }
+    },  
+    "PRIVATEAZ2": { 
+      "us-east-1": {
+        "SharedServices":     "10.0.32.0/20",
+        "Prod":               "10.0.96.0/20",
+        "Test":               "10.0.160.0/20",
+        "Dev":                "10.0.224.0/20"
+      },
+      "us-west-2": {
+        "SharedServices":     "10.1.32.0/20",
+        "Prod":               "10.1.96.0/20",
+        "Test":               "10.1.160.0/20",
+        "Dev":                "10.1.224.0/20"
+      },
+      "ap-southeast-2": {
+        "SharedServices":     "10.2.32.0/20",
+        "Prod":               "10.2.96.0/20",
+        "Test":               "10.2.160.0/20",
+        "Dev":                "10.2.224.0/20"
+      }
+    },  
+    "PRIVATEAZ3": { 
+      "us-east-1": {
+        "SharedServices":     "10.0.48.0/20",
+        "Prod":               "10.0.112.0/20",
+        "Test":               "10.0.176.0/20",
+        "Dev":                "10.0.240.0/20"
+      },
+      "us-west-2": {
+        "SharedServices":     "10.1.48.0/20",
+        "Prod":               "10.1.112.0/20",
+        "Test":               "10.1.176.0/20",
+        "Dev":                "10.1.240.0/20"
+      },
+      "ap-southeast-2": {
+        "SharedServices":     "10.2.48.0/20",
+        "Prod":               "10.2.112.0/20",
+        "Test":               "10.2.176.0/20",
+        "Dev":                "10.2.240.0/20"
+      }
+    }
+  },
+
+  "Resources":{
+
+    "DMZSubnetAz1":{
+      "Type":"AWS::EC2::Subnet",
+      "Properties":{
+        "VpcId":{ "Ref":"VPC" },
+        "CidrBlock":{ "Fn::FindInMap":[ "DMZAZ1", { "Ref": "AWS::Region" }, {"Ref":"Environment"} ]},
+        "AvailabilityZone": { "Fn::Select" : [ "0", { "Fn::GetAZs" : "" } ] },
+        "Tags" : [
+          { "Key" : "project", "Value" : {"Ref":"Project"} },
+          { "Key" : "environment", "Value" : {"Ref":"Environment"} },
+          { "Key" : "Name", "Value": "DMZAz1" }
+        ]
+      }
+    },
+    "DMZSubnetAz2":{
+      "Type":"AWS::EC2::Subnet",
+      "Properties":{
+        "VpcId":{ "Ref":"VPC" },
+        "CidrBlock":{ "Fn::FindInMap":[ "DMZAZ2", { "Ref": "AWS::Region" }, {"Ref":"Environment"} ]},
+        "AvailabilityZone": { "Fn::Select" : [ "1", { "Fn::GetAZs" : "" } ] },
+        "Tags" : [
+          { "Key" : "project", "Value" : {"Ref":"Project"} },
+          { "Key" : "environment", "Value" : {"Ref":"Environment"} },
+          { "Key" : "Name", "Value": "DMZAz2" }
+        ]
+      }
+    },
+    "DMZSubnetAz3":{
+      "Type":"AWS::EC2::Subnet",
+      "Properties":{
+        "VpcId":{ "Ref":"VPC" },
+        "CidrBlock":{ "Fn::FindInMap":[ "DMZAZ3", { "Ref": "AWS::Region" }, {"Ref":"Environment"} ]},
+        "AvailabilityZone": { "Fn::Select" : [ "2", { "Fn::GetAZs" : "" } ] },
+        "Tags" : [
+          { "Key" : "project", "Value" : {"Ref":"Project"} },
+          { "Key" : "environment", "Value" : {"Ref":"Environment"} },
+          { "Key" : "Name", "Value": "DMZAz3" }
+        ]
+      }
+    },
+    "PublicSubnetAz1":{
+      "Type":"AWS::EC2::Subnet",
+      "Properties":{
+        "VpcId":{ "Ref":"VPC" },
+        "CidrBlock":{ "Fn::FindInMap":[ "PUBLICAZ1", { "Ref": "AWS::Region" }, { "Ref": "Environment" } ]},
+        "AvailabilityZone": { "Fn::Select" : [ "0", { "Fn::GetAZs" : "" } ] },
+        "Tags" : [
+          { "Key" : "project", "Value" : { "Ref": "Project" } },
+          { "Key" : "environment", "Value" : { "Ref": "Environment" } },
+          { "Key" : "Name", "Value": { "Fn::Join": [ "-", [ { "Ref": "Environment" }, "Public-AZ1" ] ] } }
+        ]
+      }
+    },
+    "PublicSubnetAz2":{
+      "Type":"AWS::EC2::Subnet",
+      "Properties":{
+        "VpcId":{ "Ref":"VPC" },
+        "CidrBlock":{ "Fn::FindInMap":[ "PUBLICAZ2", { "Ref": "AWS::Region" }, { "Ref": "Environment" } ]},
+        "AvailabilityZone": { "Fn::Select" : [ "1", { "Fn::GetAZs" : "" } ] },
+        "Tags" : [
+          { "Key" : "project", "Value" : { "Ref": "Project" } },
+          { "Key" : "environment", "Value" : { "Ref": "Environment" } },
+          { "Key" : "Name", "Value": { "Fn::Join": [ "-", [ { "Ref": "Environment" }, "Public-AZ2" ] ] } }
+        ]
+      }
+    },
+    "PublicSubnetAz3":{
+      "Type":"AWS::EC2::Subnet",
+      "Properties":{
+        "VpcId":{ "Ref":"VPC" },
+        "CidrBlock":{ "Fn::FindInMap":[ "PUBLICAZ3", { "Ref": "AWS::Region" }, { "Ref": "Environment" } ]},
+        "AvailabilityZone": { "Fn::Select" : [ "2", { "Fn::GetAZs" : "" } ] },
+        "Tags" : [
+          { "Key" : "project", "Value" : { "Ref": "Project" } },
+          { "Key" : "environment", "Value" : { "Ref": "Environment" } },
+          { "Key" : "Name", "Value": { "Fn::Join": [ "-", [ { "Ref": "Environment" }, "Public-AZ3" ] ] } }
+        ]
+      }
+    },
+    "PrivateSubnetAz1":{
+      "Type":"AWS::EC2::Subnet",
+      "Properties":{
+        "VpcId":{ "Ref":"VPC" },
+        "CidrBlock":{ "Fn::FindInMap":[ "PRIVATEAZ1", { "Ref": "AWS::Region" }, { "Ref": "Environment" } ]},
+        "AvailabilityZone":
+          { "Fn::Select" : [ "0", { "Fn::GetAZs" : "" } ] }
+        ,
+        "Tags" : [
+          { "Key" : "project", "Value" : { "Ref": "Project" } },
+          { "Key" : "environment", "Value" : { "Ref": "Environment" } },
+          { "Key" : "Name", "Value": { "Fn::Join": [ "-", [ { "Ref": "Environment" }, "Private-AZ1" ] ] } }
+        ]
+      }
+    },
+    "PrivateSubnetAz2":{
+      "Type":"AWS::EC2::Subnet",
+      "Properties":{
+        "VpcId":{ "Ref":"VPC" },
+        "CidrBlock":{ "Fn::FindInMap":[ "PRIVATEAZ2", { "Ref": "AWS::Region" }, { "Ref": "Environment" } ]},
+        "AvailabilityZone": { "Fn::Select" : [ "1", { "Fn::GetAZs" : "" } ] },
+        "Tags" : [
+          { "Key" : "project", "Value" : { "Ref": "Project" } },
+          { "Key" : "environment", "Value" : { "Ref": "Environment" } },
+          { "Key" : "Name", "Value": { "Fn::Join": [ "-", [ { "Ref": "Environment" }, "Private-AZ2" ] ] } }
+        ]
+      }
+    },
+    "PrivateSubnetAz3":{
+      "Type":"AWS::EC2::Subnet",
+      "Properties":{
+        "VpcId":{ "Ref":"VPC" },
+        "CidrBlock":{ "Fn::FindInMap":[ "PRIVATEAZ3", { "Ref": "AWS::Region" }, { "Ref": "Environment" } ]},
+        "AvailabilityZone": { "Fn::Select" : [ "2", { "Fn::GetAZs" : "" } ] },
+        "Tags" : [
+          { "Key" : "project", "Value" : { "Ref": "Project" } },
+          { "Key" : "environment", "Value" : { "Ref": "Environment" } },
+          { "Key" : "Name", "Value": { "Fn::Join": [ "-", [ { "Ref": "Environment" }, "Private-AZ3" ] ] } }
+        ]
+      }
+    },
+    "RDSSubnetGroup": {
+      "Type": "AWS::RDS::DBSubnetGroup",
+      "Properties": {
+        "DBSubnetGroupDescription":"Subnets for RDS.",
+        "SubnetIds": [ { "Ref":"PrivateSubnetAz1" }, { "Ref":"PrivateSubnetAz3" }, { "Ref":"PrivateSubnetAz3" }
+        ],
+        "Tags": [
+          { "Key" : "project", "Value" : { "Ref": "Project" } },
+          { "Key" : "environment", "Value" : { "Ref": "Environment" } },
+          { "Key" : "Name", "Value" : { "Fn::Join": [ "", [ { "Ref": "Environment" }, "RDSSubnetGroup" ] ] } }
+        ]
+      }
+    },
+    "ElastiCacheSubnetGroup" : {
+      "Type" : "AWS::ElastiCache::SubnetGroup",
+      "Properties" : {
+        "Description" : "Production ElastiCache subnet group",
+        "SubnetIds" : [ { "Ref" : "PrivateSubnetAz1" }, { "Ref" : "PrivateSubnetAz2" }, { "Ref" : "PrivateSubnetAz3" } ]
+      }
+    },
+
+    "PublicSubnetRouteTableAssociationDMZAz1":{
+      "Type":"AWS::EC2::SubnetRouteTableAssociation",
+      "Properties":{
+        "SubnetId":{ "Ref":"DMZSubnetAz1" },
+        "RouteTableId":{ "Ref":"PublicRouteTable" }
+      }
+    },
+    "PublicSubnetRouteTableAssociationDMZAz2":{
+      "Type":"AWS::EC2::SubnetRouteTableAssociation",
+      "Properties":{
+        "SubnetId":{ "Ref":"DMZSubnetAz2" },
+        "RouteTableId":{ "Ref":"PublicRouteTable" }
+      }
+    },
+    "PublicSubnetRouteTableAssociationDMZAz3":{
+      "Type":"AWS::EC2::SubnetRouteTableAssociation",
+      "Properties":{
+        "SubnetId":{ "Ref":"DMZSubnetAz3" },
+        "RouteTableId":{ "Ref":"PublicRouteTable" }
+      }
+    },
+    "PublicSubnetRouteTableAssociationPublicAz1":{
+      "Type":"AWS::EC2::SubnetRouteTableAssociation",
+      "Properties":{
+        "SubnetId":{ "Ref":"PublicSubnetAz1" },
+        "RouteTableId":{ "Ref":"PublicRouteTable" }
+      }
+    },
+    "PublicSubnetRouteTableAssociationPublicAz2":{
+      "Type":"AWS::EC2::SubnetRouteTableAssociation",
+      "Properties":{
+        "SubnetId":{ "Ref":"PublicSubnetAz2" },
+        "RouteTableId":{ "Ref":"PublicRouteTable" }
+      }
+    },
+    "PublicSubnetRouteTableAssociationPublicAz3":{
+      "Type":"AWS::EC2::SubnetRouteTableAssociation",
+      "Properties":{
+        "SubnetId":{ "Ref":"PublicSubnetAz3" },
+        "RouteTableId":{ "Ref":"PublicRouteTable" }
+      }
+    },
+    "PrivateSubnetRouteTableAssociationPrivateAz1":{
+      "Type":"AWS::EC2::SubnetRouteTableAssociation",
+      "Properties":{
+        "SubnetId":{ "Ref":"PrivateSubnetAz1" },
+        "RouteTableId":{ "Ref":"PrivateRouteTableAz1" }
+      }
+    },
+    "PrivateSubnetRouteTableAssociationPrivateAz2":{
+      "Type":"AWS::EC2::SubnetRouteTableAssociation",
+      "Properties":{
+        "SubnetId":{ "Ref":"PrivateSubnetAz2" },
+        "RouteTableId":{ "Ref":"PrivateRouteTableAz2" }
+      }
+    },
+    "PrivateSubnetRouteTableAssociationPrivateAz3":{
+      "Type":"AWS::EC2::SubnetRouteTableAssociation",
+      "Properties":{
+        "SubnetId":{ "Ref":"PrivateSubnetAz3" },
+        "RouteTableId":{ "Ref":"PrivateRouteTableAz3" }
+      }
+    }
+  },
+
+  "Outputs": {
+
+    "DMZSubnetAz1":{
+      "Description":"ID of DMZSubnetAz1",
+      "Value": { "Ref":"DMZSubnetAz1" }
+    },
+    "DMZSubnetAz2":{
+      "Description":"ID of DMZSubnetAz2",
+      "Value": { "Ref":"DMZSubnetAz2" }
+    },
+    "DMZSubnetAz3":{
+      "Description":"ID of DMZSubnetAz3",
+      "Value": { "Ref":"DMZSubnetAz3" }
+    },
+    "PublicSubnetAz1":{
+      "Description":"ID of PublicSubnetAz1",
+      "Value": { "Ref":"PublicSubnetAz1" }
+    },
+    "PublicSubnetAz2":{
+      "Description":"ID of PublicSubnetAz2",
+      "Value": { "Ref":"PublicSubnetAz2" }
+    },
+    "PublicSubnetAz3":{
+      "Description":"ID of PublicSubnetAz3",
+      "Value": { "Ref":"PublicSubnetAz3" }
+    },
+    "PrivateSubnetAz1":{
+      "Description":"ID of PrivateSubnetAz1",
+      "Value": { "Ref":"PrivateSubnetAz1" }
+    },
+    "PrivateSubnetAz2":{
+      "Description":"ID of PrivateSubnetAz2",
+      "Value": { "Ref":"PrivateSubnetAz2" }
+    },
+    "PrivateSubnetAz3":{
+      "Description":"ID of PrivateSubnetAz3",
+      "Value": { "Ref":"PrivateSubnetAz3" }
+    },
+    "RDSSubnetGroup":{
+      "Description":"ID of RDSSubnetGroup",
+      "Value": { "Ref":"RDSSubnetGroup" }
+    },
+    "ElastiCacheSubnetGroup":{
+      "Description":"ID of ElastiCacheSubnetGroup",
+      "Value": { "Ref":"ElastiCacheSubnetGroup" }
+    }
+  }
+}

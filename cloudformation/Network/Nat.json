@@ -1,0 +1,123 @@
+{
+  "AWSTemplateFormatVersion":"2010-09-09",
+  "Description":"NAT Gateway Network Stack.",
+  "Parameters":{
+    "Project" : {
+      "Description" : "Project Name",
+      "Type" : "String",
+      "Default" : "Partner-Upload",
+      "ConstraintDescription" : "must be a string."
+    },
+    "Environment" : {
+      "Description" : "Environment Name",
+      "Type" : "String",
+      "Default" : "dev-branch-1",
+      "ConstraintDescription" : "must be a string."
+    },
+    "VPC": {
+      "Description": "VPC ID",
+      "Type": "AWS::EC2::VPC::Id"
+    },
+    "PrivateRouteTableAz1": {
+      "Description": "PrivateAz1 Route Table ID",
+      "Type": "String"
+    },
+    "PrivateRouteTableAz2": {
+      "Description": "PrivateAz2 Route Table ID",
+      "Type": "String"
+    },
+    "PrivateRouteTableAz3": {
+      "Description": "PrivateAz3 Route Table ID",
+      "Type": "String"
+    },
+    "DMZSubnetAz1": {
+      "Description": "Subnet for DMZ Az1",
+      "Type": "AWS::EC2::Subnet::Id"
+    },
+    "DMZSubnetAz2": {
+      "Description": "Subnet for DMZ Az2",
+      "Type": "AWS::EC2::Subnet::Id"
+    },
+    "DMZSubnetAz3": {
+      "Description": "Subnet for DMZ Az3",
+      "Type": "AWS::EC2::Subnet::Id"
+    }
+  },
+  "Mappings":{
+  },
+  "Resources":{
+    "PrivateRouteAz1":{
+      "Type":"AWS::EC2::Route",
+      "Properties":{
+        "RouteTableId":{ "Ref":"PrivateRouteTableAz1" },
+        "DestinationCidrBlock":"0.0.0.0/0",
+        "NatGatewayId": { "Ref": "NatGatewayAz1" }
+      }
+    },
+    "PrivateRouteAz2":{
+      "Type":"AWS::EC2::Route",
+      "Properties":{
+        "RouteTableId":{ "Ref":"PrivateRouteTableAz2" },
+        "DestinationCidrBlock":"0.0.0.0/0",
+        "NatGatewayId": { "Ref": "NatGatewayAz2" }
+      }
+    },
+    "PrivateRouteAz3":{
+      "Type":"AWS::EC2::Route",
+      "Properties":{
+        "RouteTableId":{ "Ref":"PrivateRouteTableAz3" },
+        "DestinationCidrBlock":"0.0.0.0/0",
+        "NatGatewayId": { "Ref": "NatGatewayAz3" }
+      }
+    },
+    "EipNatAz1" : {
+      "Type" : "AWS::EC2::EIP",
+      "Properties" : {
+         "Domain" : "vpc"
+      }
+    },
+    "EipNatAz2" : {
+      "Type" : "AWS::EC2::EIP",
+      "Properties" : {
+         "Domain" : "vpc"
+      }
+    },
+    "EipNatAz3" : {
+      "Type" : "AWS::EC2::EIP",
+      "Properties" : {
+         "Domain" : "vpc"
+      }
+    },
+    "EipStupidTest" : {
+      "Type" : "AWS::EC2::EIP",
+      "Properties" : {
+        "Domain" : "vpc"
+      }
+    },
+    "NatGatewayAz1": {
+      "Type" : "AWS::EC2::NatGateway",
+      "Properties" : {
+        "AllocationId" : { "Fn::GetAtt": [ "EipStupidTest", "AllocationId" ] },
+        "SubnetId" : { "Ref": "DMZSubnetAz1" }
+      }
+    },
+    "NatGatewayAz2": {
+      "Type" : "AWS::EC2::NatGateway",
+      "Properties" : {
+        "AllocationId" : { "Fn::GetAtt": [ "EipNatAz2", "AllocationId" ] },
+        "SubnetId" : { "Ref": "DMZSubnetAz2" }
+      }
+    },
+    "NatGatewayAz3": {
+      "Type" : "AWS::EC2::NatGateway",
+      "Properties" : {
+        "AllocationId" : { "Fn::GetAtt": [ "EipNatAz3", "AllocationId" ] },
+        "SubnetId" : { "Ref": "DMZSubnetAz3" }
+      }
+    }
+
+
+  },
+  "Outputs":{
+  }
+}

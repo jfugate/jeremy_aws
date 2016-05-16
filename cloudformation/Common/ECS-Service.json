@@ -1,0 +1,248 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+  "Description": "Creates the Elastic Load Balancer, ECS Service, and Task Definition for a microservice to be run in ECS.",
+  "Parameters" : {
+    "IsELBInternal": {
+      "Description": "Will this ELB be internal? ('True' for internal or 'False' for internet-facing')",
+      "Type": "String",
+      "Default": "True",
+      "AllowedValues" : ["True", "False"],
+      "ConstraintDescription": "Must be 'True' or 'False'."
+    },
+    "EcsCluster": {
+      "Type": "String",
+      "Description": "The name of the ECS Cluster which the resources will be assigned to"
+    },
+    "ELBSubnetList": {
+      "Type": "List<AWS::EC2::Subnet::Id>",
+      "Description": "List of an existing subnet IDs to use for load balancer"
+    },
+    "ELBSecurityGroups": {
+      "Description":"A list of security groups assigned to the ELB.",
+      "Type":"List<AWS::EC2::SecurityGroup::Id>"
+    },
+    "ContainerName": {
+      "Type": "String",
+      "Description": "The name of the docker container which will run the task",
+      "ConstraintDescription" : "must be a string."
+    },
+    "ContainerImage": {
+      "Type": "String",
+      "Description": "The name of the docker image which will be used to create the container. Must be of the form [NAME]:[VERSION], e.g. httpd:2.4",
+      "ConstraintDescription" : "must be a string."
+    },
+    "ContainerCpuUnits": {
+      "Type": "Number",
+      "Default" : "10",
+      "Description": "The minimum Cpu units to reserve for the container. There are 1024 cpu units in a single core",
+      "ConstraintDescription" : "must be a number."
+    },
+    "ContainerMemory": {
+      "Type": "Number",
+      "Default" : "300",
+      "Description": "The memory to reserve for the container in MiB",
+      "ConstraintDescription" : "must be a number."
+    },
+    "ContainerPort": {
+      "Type": "Number",
+      "Default" : "80",
+      "Description": "The port for the container on which the task can be reached",
+      "ConstraintDescription" : "must be a number."
+    },
+    "InstancePort": {
+      "Type": "Number",
+      "Default" : "80",
+      "Description": "The port for the instance on which the task can be reached",
+      "ConstraintDescription" : "must be a number."
+    },
+    "LoadBalancerPort": {
+      "Type": "Number",
+      "Default" : "80",
+      "Description": "The port for the ELB on which the task can be reached",
+      "ConstraintDescription" : "must be a number."
+    },
+    "Protocol": {
+      "Type": "String",
+      "Default" : "HTTP",
+      "Description": "The ELB listener protocol",
+      "ConstraintDescription" : "must be a string."
+    },
+    "HealthCheckTarget": {
+      "Type": "String",
+      "Default" : "HTTP:80/",
+      "Description": "Target for the ELB health check",
+      "ConstraintDescription" : "must be a string."
+    },
+    "ELBHealthyThreshold": {
+      "Description": "Specifies the number of consecutive health probe successes required before moving the instance to the healthy state.",
+      "Type": "Number",
+      "Default": "2",
+      "MinValue": "2",
+      "MaxValue": "10",
+      "ConstraintDescription": "Must be an integer between 2 and 10."
+    },
+    "ELBUnhealthyThreshold": {
+      "Description": "Specifies the number of consecutive health probe failures required before moving the instance to the healthy state.",
+      "Type": "Number",
+      "Default": "2",
+      "MinValue": "2",
+      "MaxValue": "10",
+      "ConstraintDescription": "Must be an integer between 2 and 10."
+    },
+    "ELBIntervalThreshold": {
+      "Description": "Amount of time between health checks (between 5 and 300 seconds).",
+      "Type": "Number",
+      "Default": "10",
+      "MinValue": "5",
+      "MaxValue": "300",
+      "ConstraintDescription": "Must be an integer between 5 and 300."
+    },
+    "ELBTimeoutThreshold": {
+      "Description": "Time to wait when receiving a response from the health check (between 2 and 60 seconds).",
+      "Type": "Number",
+      "Default": "5",
+      "MinValue": "2",
+      "MaxValue": "60",
+      "ConstraintDescription": "Must be an integer from 2 to 60."
+    },
+    "EcsServiceRole" : {
+      "Type": "String",
+      "Description": "The IAM role for the ECS service"
+    },
+    "HostedZoneName": {
+      "Type": "String",
+      "Description": "Hosted Zone Name for the Route 53 Record"
+    },
+    "ConfigBucket": {
+      "Description":"Name of S3 bucket containing dynamic configuration.",
+      "Type": "String"
+    },
+    "Utility": {
+      "Description":"Location inside S3 bucket containing dynamic configuration utility.",
+      "Type": "String"
+    },
+    "Environment": {
+      "Description": "Environment name assigned to EC2 instances (e.g. 'prod' or 'test').",
+      "Type": "String",
+      "Default": "",
+      "ConstraintDescription": "Must be a string."
+    },
+    "Release" : {
+      "Description" : "Release Number",
+      "Type" : "String",
+      "Default" : "0.0.1"
+    },
+    "Project": {
+      "Description": "Project name.",
+      "Type": "String",
+      "Default": "",
+      "ConstraintDescription": "Must be a string."
+    }
+  },
+  "Conditions": {
+    "ELBInternalCondition": { "Fn::Equals": [ { "Ref": "IsELBInternal" }, "False"] }
+  },
+  "Resources" : {
+    "TaskDefinition" : {
+      "Type": "AWS::ECS::TaskDefinition",
+      "Properties" : {
+        "ContainerDefinitions" : [
+          {
+            "Name": { "Ref" : "ContainerName" },
+            "Cpu": { "Ref" : "ContainerCpuUnits" },
+            "Essential": "true",
+            "Image": {"Ref" : "ContainerImage"},
+            "Memory": { "Ref" : "ContainerMemory" },
+            "PortMappings": [
+              {
+                "HostPort": { "Ref" : "InstancePort" },
+                "ContainerPort": { "Ref" : "ContainerPort" }
+              }
+            ],
+            "Environment": [
+              {"Name": "ENVIRONMENT", "Value": {"Ref": "Environment" } },
+              {"Name": "PROJECT", "Value": {"Ref": "Project" } },
+              {"Name": "RELEASE", "Value": {"Ref": "Release" } },
+              {"Name": "CONFIG_BUCKET", "Value": {"Ref": "ConfigBucket" } },
+              {"Name": "UTILITY", "Value": {"Ref": "Utility" } }
+            ]
+          }
+        ]
+      }
+    },
+    "Route53Record" : {
+      "Type" : "AWS::Route53::RecordSet",
+      "Properties" : {
+        "HostedZoneName" : { "Fn::Join" : [ "", [ { "Ref": "HostedZoneName" }, "." ]] },
+        "Comment" : { "Fn::Join" : [ "", [ "DNS name for ", { "Ref": "ContainerName" }, " in ", { "Ref": "Environment" } ]]},
+        "Name" : { "Fn::Join" : [ "", [ { "Ref": "ContainerName" }, ".", { "Ref": "Environment" }, ".", { "Ref": "AWS::Region"}, ".", { "Ref": "HostedZoneName" }, "." ] ] },
+        "Type" : "CNAME",
+        "TTL" : "300",
+        "ResourceRecords" : [ { "Fn::GetAtt": [ "EcsElasticLoadBalancer", "DNSName" ] } ]
+      }
+    },
+    "EcsElasticLoadBalancer" : {
+      "Type" : "AWS::ElasticLoadBalancing::LoadBalancer",
+        "Properties" : {
+          "Subnets" : { "Ref" : "ELBSubnetList" },
+          "CrossZone": "True",
+          "SecurityGroups": { "Ref": "ELBSecurityGroups" },
+          "Scheme": { "Fn::If": [ "ELBInternalCondition", "internet-facing", "internal" ] },
+          "Listeners" : [ {
+            "LoadBalancerPort" : { "Ref" : "LoadBalancerPort" },
+            "InstancePort" : { "Ref" : "InstancePort" },
+            "Protocol" : { "Ref" : "Protocol" }
+          } ],
+          "HealthCheck" : {
+            "Target" : { "Ref" : "HealthCheckTarget"},
+            "HealthyThreshold" : { "Ref" : "ELBHealthyThreshold"},
+            "UnhealthyThreshold" : { "Ref" : "ELBUnhealthyThreshold"},
+            "Interval" : { "Ref" : "ELBIntervalThreshold" },
+            "Timeout" : { "Ref" : "ELBTimeoutThreshold" }
+          },
+          "Tags": [
+            {
+              "Key": "project",
+              "Value": { "Ref": "Project" }
+            },
+            {
+              "Key": "release",
+              "Value": { "Ref": "Release" }
+            },
+            {
+              "Key": "environment",
+              "Value": { "Ref": "Environment" }
+            },
+            {
+              "Key": "service",
+              "Value": { "Ref" : "ContainerName" }
+            }
+          ]
+        }
+      },
+    "EcsService" : {
+      "Type": "AWS::ECS::Service",
+      "Properties" : {
+        "Cluster": {"Ref": "EcsCluster"},
+        "DesiredCount": "1",
+        "LoadBalancers": [
+          {
+            "ContainerName": { "Ref" : "ContainerName" },
+            "ContainerPort": { "Ref" : "ContainerPort" },
+            "LoadBalancerName" : { "Ref" : "EcsElasticLoadBalancer" }
+          }
+        ],
+        "Role" : {"Ref":"EcsServiceRole"},
+        "TaskDefinition" : {"Ref":"TaskDefinition"}
+      }
+    }
+  },
+  "Outputs" : {
+    "EcsService" : {
+      "Value" : { "Ref" : "EcsService" }
+    },
+    "TaskDefinition" : {
+      "Value" : { "Ref" : "TaskDefinition" }
+    }
+  }
+}

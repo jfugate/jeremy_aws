@@ -1,0 +1,144 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "ElastiCache: Redis Replication Group",
+
+  "Parameters" : {
+
+    "AutomaticFailoverEnabled": {
+      "Description": "Is automatic failover enabled? Must be 'False' if only one cache cluster.",
+      "Type": "String",
+      "AllowedValues": ["True", "False"]
+    },
+    "CacheNodeType" : {
+      "Description" : "The size nodes to use.",
+      "Type" : "String",
+      "Default" : "cache.t1.micro"
+    },
+    "CacheParameterGroupName": {
+      "Type": "String",
+      "Default": ""
+    },
+    "ClusterName": {
+      "Description": "Name for the cache cluster.",
+      "Type": "String",
+      "Default": ""
+    },
+    "Engine": {
+      "Description": "The name of the cache engine to be used for this cache cluster, such as 'memcached' or 'redis'.",
+      "Type": "String",
+      "Default": "redis",
+      "AllowedValues" : ["memcached", "redis"]
+    },
+    "EngineVersion": {
+      "Description": "The version of the cache engine to be used for this cluster.",
+      "Type": "String",
+      "Default": ""
+    },
+    "ElastiCacheSubnetGroup" : {
+      "Description" : "The ElastiCacheSubnetGroup ID to be used for Elasticache.",
+      "Type": "String"
+    },
+    "ElastiCacheSecurityGroup": {
+      "Description" : "Security Group ID for ElastiCache",
+      "Type": "AWS::EC2::SecurityGroup::Id"
+    },
+    "NotificationTopicArn": {
+      "Description": "The Amazon Resource Name (ARN) of the Amazon Simple Notification Service (SNS) topic to which notifications will be sent.",
+      "Type": "String",
+      "Default": ""
+    },
+    "NumberOfNodes" : {
+      "Description": "The number of nodes to use.",
+      "Type" : "String",
+      "Default": "1"
+    },
+    "ReplicationGroupDescription": {
+      "Description": "Description of the Redis replication group.",
+      "Type": "String",
+      "Default": ""
+    },
+    "SnapshotRetentionLimit": {
+      "Description": "Number of days to retain snapshots.",
+      "Type": "String",
+      "Default": ""
+    },
+    "Environment": {
+      "Description": "Environment name assigned to EC2 instances (e.g. 'prod' or 'test').",
+      "Type": "String",
+      "Default": "",
+      "ConstraintDescription": "Must be a string."
+    },
+    "Release" : {
+      "Description" : "Release Number",
+      "Type" : "String",
+      "Default" : "0.0.1"
+    },
+    "HostedZoneName": {
+      "Description": "FQDN of the domain you want to add record to",
+      "Type": "String",
+      "Default": ""
+    }
+
+  },
+
+  "Mappings": {
+  },
+
+  "Conditions": {
+    "EngineVersionCondition": { "Fn::Equals": [ { "Ref": "EngineVersion" }, ""] },
+    "NotificationTopicArnCondition": { "Fn::Equals": [ { "Ref": "NotificationTopicArn" }, ""] },
+    "SpecifyParameterGroup": { "Fn::Equals": [ { "Ref": "CacheParameterGroupName" }, ""] }
+  },
+
+  "Resources" : {
+    "RedisReplicationGroup" : {
+      "Type": "AWS::ElastiCache::ReplicationGroup",
+      "Properties": {
+        "AutomaticFailoverEnabled" : {"Ref": "AutomaticFailoverEnabled"},
+        "AutoMinorVersionUpgrade" : "true",
+        "CacheNodeType" : {"Ref": "CacheNodeType" },
+        "CacheParameterGroupName": {
+          "Fn::If": [
+            "SpecifyParameterGroup",
+            { "Ref" : "AWS::NoValue" },
+            { "Ref": "CacheParameterGroupName" }
+          ]
+        },
+        "CacheSubnetGroupName" : { "Ref" : "ElastiCacheSubnetGroup" },
+        "Engine" : "redis",
+        "EngineVersion": {
+          "Fn::If": [
+            "EngineVersionCondition",
+            { "Ref" : "AWS::NoValue" },
+            { "Ref": "EngineVersion" }
+          ]
+        },
+        "NumCacheClusters" : {"Ref": "NumberOfNodes"},
+        "ReplicationGroupDescription" : {"Ref": "ReplicationGroupDescription"},
+        "SecurityGroupIds": [ {"Ref" : "ElastiCacheSecurityGroup" } ],
+        "SnapshotRetentionLimit" : {
+          "Fn::If": [
+            "EngineVersionCondition",
+            { "Ref" : "AWS::NoValue" },
+            { "Ref": "SnapshotRetentionLimit" }
+          ]
+        }
+      }
+    },
+    "Route53Record" : {
+      "Type" : "AWS::Route53::RecordSet",
+      "Properties" : {
+        "HostedZoneName" : { "Fn::Join" : [ "", [ { "Ref": "HostedZoneName" }, "." ]] },
+        "Comment" : { "Fn::Join" : [ "", [ "DNS name for ", { "Ref": "ClusterName" }, " in ", { "Ref": "Environment" } ]]},
+        "Name" : { "Fn::Join" : [ "", [ { "Ref": "ClusterName" }, ".", { "Ref": "Environment" }, ".", { "Ref": "AWS::Region"}, ".", { "Ref": "HostedZoneName" }, "." ] ] },
+        "Type" : "CNAME",
+        "TTL" : "300",
+        "ResourceRecords" : [ { "Fn::GetAtt": [ "RedisReplicationGroup", "PrimaryEndPoint.Address" ] } ]
+      }
+    }
+  },
+  "Outputs" : {
+
+  }
+}

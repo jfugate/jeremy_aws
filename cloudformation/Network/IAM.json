@@ -1,0 +1,97 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Network IAM",
+  "Parameters": {
+    "CloudToolsBucket": {
+      "Description": "Name of the S3 bucket for cloud tools.",
+      "Type": "String"
+    }
+  },
+  "Mappings": {
+  },
+  "Conditions": {
+  },
+  "Resources": {
+    "BastionInstanceProfile": {
+      "Type": "AWS::IAM::InstanceProfile",
+      "Properties": {
+        "Path": "/",
+        "Roles": [ { "Ref": "BastionIamRole" } ]
+      }
+    },
+    "BastionIamRole": {
+        "Properties": {
+            "AssumeRolePolicyDocument": {
+                "Statement": [
+                    {
+                        "Action": [
+                            "sts:AssumeRole"
+                        ],
+                        "Effect": "Allow",
+                        "Principal": {
+                            "Service": [
+                                "ec2.amazonaws.com"
+                            ]
+                        }
+                    }
+                ]
+            },
+            "Path": "/",
+            "Policies": [
+                {
+                    "PolicyDocument": {
+                        "Statement": [
+                            {
+                                "Action": [
+                                    "s3:ListAllMyBuckets"
+                                ],
+                                "Effect": "Allow",
+                                "Resource": "*",
+                                "Sid": "AllowS3ListAllMyBuckets"
+                            },
+                            {
+                                "Action": "s3:*",
+                                "Effect": "Allow",
+                                "Resource": { "Fn::Join": [ "", [ "arn:aws:s3:::", { "Ref": "CloudToolsBucket" } ] ] },
+                                "Sid": "AllowS3BootstrapBucket"
+                            },
+                            {
+                                "Action": "s3:*",
+                                "Effect": "Allow",
+                                "Resource": {
+                                    "Fn::Join": [
+                                        "",
+                                        [
+                                            "arn:aws:s3:::",
+                                            { "Ref": "CloudToolsBucket" },
+                                            "/*"
+                                        ]
+                                    ]
+                                },
+                                "Sid": "AllowS3BootstrapObjects"
+                            },
+                            {
+                                "Action": [
+                                    "sns:Publish"
+                                ],
+                                "Effect": "Allow",
+                                "Resource": "*",
+                                "Sid": "AllowSNSPublish"
+                            }
+                        ]
+                    },
+                    "PolicyName": "BastionPolicy"
+                }
+            ]
+        },
+        "Type": "AWS::IAM::Role"
+    }
+  },
+  "Outputs": {
+    "BastionInstanceProfile":{
+      "Description":"Bastion IAM Instance Profile",
+      "Value": { "Ref":"BastionInstanceProfile" }
+    }
+  }
+}
+

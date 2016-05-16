@@ -1,0 +1,233 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+  "Description": "Creates the ECS Cluster and the Auto Scaling group for the ECS instances.",
+  "Parameters" : {
+    "EC2KeyPair": {
+      "Type": "AWS::EC2::KeyPair::KeyName",
+      "Description": "Name of an existing EC2 KeyPair to enable SSH access to the ECS instances"
+    },
+    "InstanceSubnetList": {
+      "Description":"A list of subnet IDs in your VPC to attach to your EC2 instances.",
+      "Type": "List<AWS::EC2::Subnet::Id>"
+    },
+    "InstanceSecurityGroups": {
+      "Description": "A list of security groups assigned to EC2 instances in the ASG.",
+      "Type": "List<AWS::EC2::SecurityGroup::Id>"
+    },
+    "MaxInstancesCount": {
+      "Description": "Maximum number of EC2 instances in the ASG.",
+      "Type": "Number",
+      "Default": "2",
+      "MinValue": "0",
+      "MaxValue": "10000"
+    },
+    "MinInstancesCount": {
+      "Description": "Minimum number of EC2 instances in the ASG.",
+      "Type": "Number",
+      "Default": "2",
+      "MinValue": "0",
+      "MaxValue": "1000"
+    },
+    "InstanceType" : {
+      "Description" : "The EC2 instance type",
+      "Type" : "String",
+      "Default" : "t2.micro",
+      "AllowedValues" : [ "t2.micro", "t2.small", "t2.medium", "t2.large", "m3.medium", "m3.large", "m3.xlarge", "m3.2xlarge",
+"m4.large", "m4.xlarge", "m4.2xlarge", "m4.4xlarge", "m4.10xlarge", "c3.large", "c3.xlarge", "c3.2xlarge", "c3.4xlarge", "c3.8xlarge",
+"c4.large", "c4.xlarge", "c4.2xlarge", "c4.4xlarge", "c4.8xlarge", "r3.large", "r3.xlarge", "r3.2xlarge", "r3.4xlarge", "r3.8xlarge",
+"i2.xlarge", "i2.2xlarge", "i2.4xlarge", "i2.8xlarge", "d2.xlarge", "d2.2xlarge", "d2.4xlarge", "d2.8xlarge",
+"hi1.4xlarge", "hs1.8xlarge", "cr1.8xlarge", "cc2.8xlarge"],
+      "ConstraintDescription" : "must be a valid EC2 instance type."
+    },
+    "IAMInstanceProfile": {
+      "Description":"ARN of the instance profile associated with the IAM role for the instance. The instance profile contains the IAM role.",
+      "Type":"String",
+      "Default":""
+    },
+    "AMI": {
+      "Description": "The AMI ID assigned to the Launch Configuration for EC2 instances in the ASG.",
+      "Type": "String",
+      "Default": "",
+      "ConstraintDescription": "Must be a string."
+    },
+    "Role": {
+      "Description": "Name which will be applied to EC2 instances in the ASG (e.g. 'web' or 'app').",
+      "Type": "String",
+      "Default": "",
+      "ConstraintDescription": "Must be a string."
+    },
+    "Environment": {
+      "Description": "Environment name assigned to EC2 instances (e.g. 'prod' or 'test').",
+      "Type": "String",
+      "Default": "",
+      "ConstraintDescription": "Must be a string."
+    },
+    "Release" : {
+      "Description" : "Release Number",
+      "Type" : "String",
+      "Default" : "0.0.1"
+    },
+    "Project": {
+      "Description": "Project name.",
+      "Type": "String",
+      "Default": "",
+      "ConstraintDescription": "Must be a string."
+    },
+    "RollingUpdateMinInstancesInService": {
+      "Description": "Minimum number of EC2 instances to remain in service during rolling update.",
+      "Type": "Number",
+      "Default": "1",
+      "MinValue": "1",
+      "MaxValue": "10000"
+    },
+    "RollingUpdateMaxBatchSize": {
+      "Description": "Maximum number of EC2 instances for batch during rolling update.",
+      "Type": "Number",
+      "Default": "1",
+      "MinValue": "1",
+      "MaxValue": "10000"
+    },
+    "RollingUpdatePauseTime": {
+      "Description": "Amount of time to pause before adding or removing autoscaling instances during rolling update.",
+      "Type": "String",
+      "Default": "PT0M30S"
+    }
+  },
+
+  "Mappings" : {
+  },
+
+  "Resources" : {
+    "ECSCluster": {
+      "Type": "AWS::ECS::Cluster"
+    },
+    "ECSAutoScalingGroup" : {
+      "Type" : "AWS::AutoScaling::AutoScalingGroup",
+      "Properties" : {
+        "VPCZoneIdentifier" : { "Ref" : "InstanceSubnetList" },
+        "LaunchConfigurationName" : { "Ref" : "ContainerLaunchConfig" },
+        "MinSize" : { "Ref" : "MinInstancesCount" },
+        "MaxSize" : { "Ref" : "MaxInstancesCount" },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": {
+              "Fn::Join": [
+                "",
+                [ { "Ref": "Environment" }, "-", { "Ref": "Role" }, "-ASG" ]
+              ]
+            },
+            "PropagateAtLaunch": "true"
+          },
+          {
+            "Key": "project",
+            "Value": { "Ref": "Project" },
+            "PropagateAtLaunch": "true"
+          },
+          {
+            "Key": "release",
+            "Value": { "Ref": "Release" },
+            "PropagateAtLaunch": "true"
+          },
+          {
+            "Key": "environment",
+            "Value": { "Ref": "Environment" },
+            "PropagateAtLaunch": "true"
+          },
+          {
+            "Key": "role",
+            "Value": { "Ref": "Role" },
+            "PropagateAtLaunch": "true"
+          }
+        ]
+      },
+      "CreationPolicy" : {
+        "ResourceSignal" : {
+          "Timeout" : "PT15M"
+        }
+      },
+      "UpdatePolicy": {
+        "AutoScalingRollingUpdate": {
+          "MinInstancesInService": { "Ref": "RollingUpdateMinInstancesInService" },
+          "MaxBatchSize": { "Ref": "RollingUpdateMaxBatchSize" },
+          "PauseTime": { "Ref": "RollingUpdatePauseTime" },
+          "WaitOnResourceSignals": "true"
+        }
+      }
+    },
+    "ContainerLaunchConfig": {
+      "Type": "AWS::AutoScaling::LaunchConfiguration",
+      "Metadata" : {
+        "AWS::CloudFormation::Init" : {
+          "config" : {
+
+            "commands" : {
+              "01_add_instance_to_cluster" : {
+                "command" : { "Fn::Join": [ "", [ "#!/bin/bash\n", "echo ECS_CLUSTER=", { "Ref": "ECSCluster" }, " >> /etc/ecs/ecs.config" ] ] }
+              }
+            },
+
+            "files" : {
+              "/etc/cfn/cfn-hup.conf" : {
+                "content" : { "Fn::Join" : ["", [
+                  "[main]\n",
+                  "stack=", { "Ref" : "AWS::StackId" }, "\n",
+                  "region=", { "Ref" : "AWS::Region" }, "\n"
+                ]]},
+                "mode"    : "000400",
+                "owner"   : "root",
+                "group"   : "root"
+              },
+              "/etc/cfn/hooks.d/cfn-auto-reloader.conf" : {
+                "content": { "Fn::Join" : ["", [
+                  "[cfn-auto-reloader-hook]\n",
+                  "triggers=post.update\n",
+                  "path=Resources.ContainerLaunchConfig.Metadata.AWS::CloudFormation::Init\n",
+                  "action=/opt/aws/bin/cfn-init -v ",
+                  "         --stack ", { "Ref" : "AWS::StackName" },
+                  "         --resource ContainerLaunchConfig ",
+                  "         --region ", { "Ref" : "AWS::Region" }, "\n",
+                  "runas=root\n"
+                ]]}
+              }
+            },
+
+            "services" : {
+              "sysvinit" : {
+                "cfn-hup" : { "enabled" : "true", "ensureRunning" : "true", "files" : ["/etc/cfn/cfn-hup.conf", "/etc/cfn/hooks.d/cfn-auto-reloader.conf"] }
+              }
+            }
+          }
+        }
+      },
+      "Properties": {
+        "ImageId" : { "Ref": "AMI" },
+        "InstanceType"   : { "Ref" : "InstanceType" },
+        "IamInstanceProfile": { "Ref": "IAMInstanceProfile" },
+        "SecurityGroups" : { "Ref": "InstanceSecurityGroups" },
+        "KeyName"        : { "Ref" : "EC2KeyPair" },
+        "UserData"       : { "Fn::Base64" : { "Fn::Join" : ["", [
+             "#!/bin/bash -xe\n",
+             "yum install -y aws-cfn-bootstrap\n",
+
+             "date\n",
+             "/opt/aws/bin/cfn-init -v ",
+             "         --stack ", { "Ref" : "AWS::StackName" },
+             "         --resource ContainerLaunchConfig ",
+             "         --region ", { "Ref" : "AWS::Region" }, "\n",
+            "date\n",
+             "/opt/aws/bin/cfn-signal -e $? ",
+             "         --stack ", { "Ref" : "AWS::StackName" },
+             "         --resource ECSAutoScalingGroup ",
+             "         --region ", { "Ref" : "AWS::Region" }, "\n"
+        ]]}}
+      }
+    }
+  },
+
+  "Outputs" : {
+    "ECSCluster" : {
+      "Value" : { "Ref" : "ECSCluster" }
+    }
+  }
+}
